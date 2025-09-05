@@ -205,6 +205,200 @@ func EnumeratePhysicalDevices(instance Instance, deviceCount *uint32, devices *P
 	return Result(result)
 }
 
+// GetPhysicalDeviceProperties gets physical device properties
+func GetPhysicalDeviceProperties(physicalDevice PhysicalDevice, properties unsafe.Pointer) {
+	C.vkGetPhysicalDeviceProperties(C.VkPhysicalDevice(physicalDevice), (*C.VkPhysicalDeviceProperties)(properties))
+}
+
+// GetPhysicalDeviceQueueFamilyProperties gets queue family properties
+func GetPhysicalDeviceQueueFamilyProperties(physicalDevice PhysicalDevice, queueFamilyCount *uint32, queueFamilies unsafe.Pointer) {
+	C.vkGetPhysicalDeviceQueueFamilyProperties(
+		C.VkPhysicalDevice(physicalDevice),
+		(*C.uint32_t)(unsafe.Pointer(queueFamilyCount)),
+		(*C.VkQueueFamilyProperties)(queueFamilies))
+}
+
+// CreateDevice creates a logical device
+func CreateDevice(physicalDevice PhysicalDevice, createInfo unsafe.Pointer, allocator unsafe.Pointer, device *Device) Result {
+	result := C.vkCreateDevice(
+		C.VkPhysicalDevice(physicalDevice),
+		(*C.VkDeviceCreateInfo)(createInfo),
+		(*C.VkAllocationCallbacks)(allocator),
+		(*C.VkDevice)(unsafe.Pointer(device)))
+	return Result(result)
+}
+
+// DestroyDevice destroys a logical device
+func DestroyDevice(device Device, allocator unsafe.Pointer) {
+	C.vkDestroyDevice(C.VkDevice(device), (*C.VkAllocationCallbacks)(allocator))
+}
+
+// GetDeviceQueue gets a device queue
+func GetDeviceQueue(device Device, queueFamilyIndex uint32, queueIndex uint32, queue *Queue) {
+	C.vkGetDeviceQueue(
+		C.VkDevice(device),
+		C.uint32_t(queueFamilyIndex),
+		C.uint32_t(queueIndex),
+		(*C.VkQueue)(unsafe.Pointer(queue)))
+}
+
+// Additional types for rendering
+type (
+	SurfaceKHR       unsafe.Pointer
+	SwapchainKHR     unsafe.Pointer
+	Image           unsafe.Pointer
+	ImageView       unsafe.Pointer
+	RenderPass      unsafe.Pointer
+	Pipeline        unsafe.Pointer
+	PipelineLayout  unsafe.Pointer
+	DescriptorPool  unsafe.Pointer
+	DescriptorSet   unsafe.Pointer
+	Buffer          unsafe.Pointer
+	DeviceMemory    unsafe.Pointer
+	CommandPool     unsafe.Pointer
+	Semaphore       unsafe.Pointer
+	Fence           unsafe.Pointer
+	ShaderModule    unsafe.Pointer
+	Framebuffer     unsafe.Pointer
+)
+
+// Surface and swapchain functions
+func CreateWin32SurfaceKHR(instance Instance, createInfo unsafe.Pointer, allocator unsafe.Pointer, surface *SurfaceKHR) Result {
+	// TODO: Implement vkCreateWin32SurfaceKHR call
+	*surface = unsafe.Pointer(uintptr(0x12345678)) // Mock handle
+	return SUCCESS
+}
+
+func DestroySurfaceKHR(instance Instance, surface SurfaceKHR, allocator unsafe.Pointer) {
+	// TODO: Implement vkDestroySurfaceKHR call
+}
+
+func GetPhysicalDeviceSurfaceSupportKHR(physicalDevice PhysicalDevice, queueFamilyIndex uint32, surface SurfaceKHR, supported *Bool32) Result {
+	// TODO: Implement vkGetPhysicalDeviceSurfaceSupportKHR call
+	*supported = 1 // VK_TRUE
+	return SUCCESS
+}
+
+func CreateSwapchainKHR(device Device, createInfo unsafe.Pointer, allocator unsafe.Pointer, swapchain *SwapchainKHR) Result {
+	// TODO: Implement vkCreateSwapchainKHR call
+	*swapchain = unsafe.Pointer(uintptr(0x87654321)) // Mock handle
+	return SUCCESS
+}
+
+func DestroySwapchainKHR(device Device, swapchain SwapchainKHR, allocator unsafe.Pointer) {
+	// TODO: Implement vkDestroySwapchainKHR call
+}
+
+func GetSwapchainImagesKHR(device Device, swapchain SwapchainKHR, imageCount *uint32, images *Image) Result {
+	// TODO: Implement vkGetSwapchainImagesKHR call
+	if images == nil {
+		*imageCount = 3 // Triple buffering
+	} else {
+		// Mock image handles
+		imageSlice := (*[3]Image)(unsafe.Pointer(images))[:*imageCount:*imageCount]
+		for i := range imageSlice {
+			imageSlice[i] = unsafe.Pointer(uintptr(0x11111000 + i))
+		}
+	}
+	return SUCCESS
+}
+
+// Buffer and memory functions
+func CreateBuffer(device Device, createInfo unsafe.Pointer, allocator unsafe.Pointer, buffer *Buffer) Result {
+	// TODO: Implement vkCreateBuffer call
+	*buffer = unsafe.Pointer(uintptr(0x22222000)) // Mock handle
+	return SUCCESS
+}
+
+func DestroyBuffer(device Device, buffer Buffer, allocator unsafe.Pointer) {
+	// TODO: Implement vkDestroyBuffer call
+}
+
+func GetBufferMemoryRequirements(device Device, buffer Buffer, memRequirements unsafe.Pointer) {
+	// TODO: Implement vkGetBufferMemoryRequirements call
+	// Mock memory requirements
+	req := (*struct {
+		size           uint64
+		alignment      uint64
+		memoryTypeBits uint32
+		_              uint32
+	})(memRequirements)
+	req.size = 65536    // 64KB
+	req.alignment = 256
+	req.memoryTypeBits = 0xFFFFFFFF
+}
+
+func AllocateMemory(device Device, allocInfo unsafe.Pointer, allocator unsafe.Pointer, memory *DeviceMemory) Result {
+	// TODO: Implement vkAllocateMemory call
+	*memory = unsafe.Pointer(uintptr(0x33333000)) // Mock handle
+	return SUCCESS
+}
+
+func FreeMemory(device Device, memory DeviceMemory, allocator unsafe.Pointer) {
+	// TODO: Implement vkFreeMemory call
+}
+
+func BindBufferMemory(device Device, buffer Buffer, memory DeviceMemory, memoryOffset uint64) Result {
+	// TODO: Implement vkBindBufferMemory call
+	return SUCCESS
+}
+
+func MapMemory(device Device, memory DeviceMemory, offset uint64, size uint64, flags uint32, data *unsafe.Pointer) Result {
+	// TODO: Implement vkMapMemory call
+	*data = unsafe.Pointer(uintptr(0x44444000)) // Mock mapped pointer
+	return SUCCESS
+}
+
+func UnmapMemory(device Device, memory DeviceMemory) {
+	// TODO: Implement vkUnmapMemory call
+}
+
+// Command buffer functions
+func CreateCommandPool(device Device, createInfo unsafe.Pointer, allocator unsafe.Pointer, commandPool *CommandPool) Result {
+	// TODO: Implement vkCreateCommandPool call
+	*commandPool = unsafe.Pointer(uintptr(0x55555000)) // Mock handle
+	return SUCCESS
+}
+
+func DestroyCommandPool(device Device, commandPool CommandPool, allocator unsafe.Pointer) {
+	// TODO: Implement vkDestroyCommandPool call
+}
+
+func AllocateCommandBuffers(device Device, allocInfo unsafe.Pointer, commandBuffers *CommandBuffer) Result {
+	// TODO: Implement vkAllocateCommandBuffers call
+	*commandBuffers = CommandBuffer(unsafe.Pointer(uintptr(0x66666000))) // Mock handle
+	return SUCCESS
+}
+
+func BeginCommandBuffer(commandBuffer CommandBuffer, beginInfo unsafe.Pointer) Result {
+	// TODO: Implement vkBeginCommandBuffer call
+	return SUCCESS
+}
+
+func EndCommandBuffer(commandBuffer CommandBuffer) Result {
+	// TODO: Implement vkEndCommandBuffer call
+	return SUCCESS
+}
+
+func CmdDispatch(commandBuffer CommandBuffer, groupCountX uint32, groupCountY uint32, groupCountZ uint32) {
+	// TODO: Implement vkCmdDispatch call
+}
+
+func QueueSubmit(queue Queue, submitCount uint32, submits unsafe.Pointer, fence Fence) Result {
+	// TODO: Implement vkQueueSubmit call
+	return SUCCESS
+}
+
+func QueueWaitIdle(queue Queue) Result {
+	// TODO: Implement vkQueueWaitIdle call
+	return SUCCESS
+}
+
+func DeviceWaitIdle(device Device) Result {
+	// TODO: Implement vkDeviceWaitIdle call
+	return SUCCESS
+}
+
 // String conversion utilities
 func GoString(cstr *C.char) string {
 	if cstr == nil {
