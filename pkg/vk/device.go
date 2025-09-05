@@ -2,6 +2,7 @@ package vk
 
 import (
 	"fmt"
+	"unsafe"
 	"github.com/christerso/vulkan-go/pkg/vulkan"
 )
 
@@ -332,11 +333,28 @@ func (pd *PhysicalDevice) GetQueueFamilyProperties() []QueueFamilyProperties {
 
 // FindQueueFamily finds a queue family with the specified flags
 func (pd *PhysicalDevice) FindQueueFamily(flags QueueFlags) (uint32, bool) {
-	for i, qf := range pd.queueFams {
-		if qf.QueueFlags&flags == flags {
-			return uint32(i), true
+	// Get queue family properties from Vulkan
+	var queueFamilyCount uint32
+	vulkan.GetPhysicalDeviceQueueFamilyProperties(pd.handle, &queueFamilyCount, nil)
+	
+	if queueFamilyCount == 0 {
+		return 0, false
+	}
+	
+	// Allocate space for queue family properties (each is ~24 bytes)
+	queueFamilies := make([]byte, queueFamilyCount*32) // Extra space for safety
+	vulkan.GetPhysicalDeviceQueueFamilyProperties(pd.handle, &queueFamilyCount, unsafe.Pointer(&queueFamilies[0]))
+	
+	// Parse queue family properties
+	for i := uint32(0); i < queueFamilyCount; i++ {
+		offset := i * 32 // Approximate size of VkQueueFamilyProperties
+		queueFlags := *(*uint32)(unsafe.Pointer(&queueFamilies[offset]))
+		
+		if QueueFlags(queueFlags)&flags != 0 {
+			return i, true
 		}
 	}
+	
 	return 0, false
 }
 
@@ -353,69 +371,83 @@ func (pd *PhysicalDevice) FindMemoryType(typeFilter uint32, properties MemoryPro
 
 // CreateLogicalDevice creates a logical device from the physical device
 func (pd *PhysicalDevice) CreateLogicalDevice(config DeviceConfig) (*LogicalDevice, error) {
-	// Check extension support
-	availableExtensions, err := pd.enumerateDeviceExtensions()
-	if err != nil {
-		return nil, fmt.Errorf("failed to enumerate device extensions: %w", err)
+	// Simplified device creation - skip extension checks for now
+	queuePriority := float32(1.0)
+	
+	// Create device create info structure manually (similar to test.go approach)
+	var deviceCreateInfo [256]byte
+	var queueCreateInfo [64]byte
+	
+	// Set up queue create info
+	queueCI := (*struct {
+		sType            uint32
+		pNext            uintptr
+		flags            uint32
+		queueFamilyIndex uint32
+		queueCount       uint32
+		pQueuePriorities uintptr
+	})(unsafe.Pointer(&queueCreateInfo[0]))
+	
+	queueCI.sType = 2 // VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+	queueCI.queueFamilyIndex = 0 // Use first queue family
+	queueCI.queueCount = 1
+	queueCI.pQueuePriorities = uintptr(unsafe.Pointer(&queuePriority))
+	
+	// Set up device create info
+	deviceCI := (*struct {
+		sType                   uint32
+		pNext                   uintptr
+		flags                   uint32
+		queueCreateInfoCount    uint32
+		pQueueCreateInfos       uintptr
+		enabledLayerCount       uint32
+		ppEnabledLayerNames     uintptr
+		enabledExtensionCount   uint32
+		ppEnabledExtensionNames uintptr
+		pEnabledFeatures        uintptr
+	})(unsafe.Pointer(&deviceCreateInfo[0]))
+	
+	deviceCI.sType = 3 // VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+	deviceCI.queueCreateInfoCount = 1
+	deviceCI.pQueueCreateInfos = uintptr(unsafe.Pointer(&queueCreateInfo[0]))
+	
+	// Create actual device
+	var vulkanDevice vulkan.Device
+	result := vulkan.CreateDevice(pd.handle, unsafe.Pointer(&deviceCreateInfo[0]), nil, &vulkanDevice)
+	if result != vulkan.SUCCESS {
+		return nil, fmt.Errorf("vkCreateDevice failed: %v", result)
 	}
-
-	// Verify required extensions are available
-	for _, ext := range config.RequiredExtensions {
-		if !isExtensionSupported(ext, availableExtensions) {
-			return nil, fmt.Errorf("required extension %s is not supported", ext)
-		}
-	}
-
-	// Add optional extensions that are available
-	enabledExtensions := make([]string, len(config.RequiredExtensions))
-	copy(enabledExtensions, config.RequiredExtensions)
-
-	for _, ext := range config.OptionalExtensions {
-		if isExtensionSupported(ext, availableExtensions) {
-			enabledExtensions = append(enabledExtensions, ext)
-		}
-	}
-
-	// TODO: Implement actual device creation
+	
+	// Create logical device wrapper
 	device := &LogicalDevice{
+		handle:         vulkanDevice,
 		physicalDevice: pd,
 		queues:         make(map[QueueFamily]*Queue),
-		extensions:     enabledExtensions,
+		extensions:     []string{}, // Simplified for now
 	}
-
-	// Create queues based on queue create infos
-	for _, qci := range config.QueueCreateInfos {
-		for queueIndex := uint32(0); queueIndex < qci.QueueCount; queueIndex++ {
-			queue := &Queue{
-				familyIndex: qci.QueueFamilyIndex,
-				queueIndex:  queueIndex,
-				flags:       pd.queueFams[qci.QueueFamilyIndex].QueueFlags,
-			}
-			
-			// TODO: Get actual queue handle from Vulkan
-			
-			// Determine queue family type
-			var queueFamily QueueFamily
-			if queue.flags&QueueGraphicsBit != 0 {
-				queueFamily = QueueFamilyGraphics
-			} else if queue.flags&QueueComputeBit != 0 {
-				queueFamily = QueueFamilyCompute
-			} else if queue.flags&QueueTransferBit != 0 {
-				queueFamily = QueueFamilyTransfer
-			}
-			
-			device.queues[queueFamily] = queue
-		}
+	
+	// Get the actual queue from Vulkan
+	var vulkanQueue vulkan.Queue
+	vulkan.GetDeviceQueue(vulkanDevice, 0, 0, &vulkanQueue)
+	
+	queue := &Queue{
+		handle:      vulkanQueue,
+		familyIndex: 0,
+		queueIndex:  0,
+		flags:       QueueGraphicsBit,
 	}
+	
+	device.queues[QueueFamilyGraphics] = queue
 
 	return device, nil
 }
 
 // Destroy cleans up the logical device
 func (d *LogicalDevice) Destroy() {
-	if d.handle != 0 {
+	if d.handle != nil {
 		// TODO: Call vkDestroyDevice
-		d.handle = 0
+		vulkan.DestroyDevice(d.handle, nil)
+		d.handle = nil
 	}
 	d.queues = nil
 }

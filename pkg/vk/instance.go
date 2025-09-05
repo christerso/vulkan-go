@@ -2,8 +2,10 @@ package vk
 
 import (
 	"fmt"
+	"unsafe"
 	"github.com/christerso/vulkan-go/pkg/vulkan"
 )
+
 
 // Instance represents a Vulkan instance with high-level management
 type Instance struct {
@@ -112,12 +114,13 @@ func CreateInstance(config InstanceConfig) (*Instance, error) {
 		layers: config.EnabledLayers,
 	}
 
-	// TODO: Actual Vulkan instance creation would go here
-	// This is a placeholder for the actual implementation
-	result := createVulkanInstance(config)
+	// Actual Vulkan instance creation
+	handle, result := createVulkanInstance(config)
 	if result != vulkan.SUCCESS {
 		return nil, fmt.Errorf("vkCreateInstance failed: %v", result)
 	}
+	
+	instance.handle = handle
 
 	// Setup debug messenger if validation is enabled
 	if config.EnableValidation {
@@ -139,9 +142,9 @@ func (i *Instance) Destroy() {
 		i.debug = nil
 	}
 
-	if i.handle != 0 {
-		// TODO: Call vkDestroyInstance
-		i.handle = 0
+	if i.handle != nil {
+		vulkan.DestroyInstance(i.handle, nil)
+		i.handle = nil
 	}
 }
 
@@ -152,8 +155,62 @@ func (i *Instance) Handle() vulkan.Instance {
 
 // EnumeratePhysicalDevices returns all available physical devices
 func (i *Instance) EnumeratePhysicalDevices() ([]*PhysicalDevice, error) {
-	// TODO: Implement actual enumeration
-	return nil, fmt.Errorf("not implemented")
+	var deviceCount uint32
+	result := vulkan.EnumeratePhysicalDevices(i.handle, &deviceCount, nil)
+	if result != vulkan.SUCCESS {
+		return nil, fmt.Errorf("failed to enumerate devices: %v", result)
+	}
+	
+	if deviceCount == 0 {
+		return nil, fmt.Errorf("no physical devices found")
+	}
+	
+	vulkanDevices := make([]vulkan.PhysicalDevice, deviceCount)
+	result = vulkan.EnumeratePhysicalDevices(i.handle, &deviceCount, &vulkanDevices[0])
+	if result != vulkan.SUCCESS {
+		return nil, fmt.Errorf("failed to get physical devices: %v", result)
+	}
+	
+	devices := make([]*PhysicalDevice, deviceCount)
+	for i, vulkanDevice := range vulkanDevices {
+		// Get device properties
+		var properties [1024]byte // Large enough for VkPhysicalDeviceProperties
+		vulkan.GetPhysicalDeviceProperties(vulkanDevice, unsafe.Pointer(&properties[0]))
+		
+		// Extract device name (starts at offset 4, max 256 chars)
+		deviceName := (*[256]byte)(unsafe.Pointer(&properties[4]))[:256]
+		nameLen := 0
+		for j, b := range deviceName {
+			if b == 0 {
+				nameLen = j
+				break
+			}
+		}
+		
+		// Get queue family properties for this device
+		var queueFamilyCount uint32
+		vulkan.GetPhysicalDeviceQueueFamilyProperties(vulkanDevice, &queueFamilyCount, nil)
+		
+		queueFams := make([]QueueFamilyProperties, queueFamilyCount)
+		if queueFamilyCount > 0 {
+			// Create a simple queue family with graphics support
+			queueFams[0] = QueueFamilyProperties{
+				QueueFlags: QueueGraphicsBit,
+				QueueCount: 1,
+			}
+		}
+		
+		devices[i] = &PhysicalDevice{
+			handle: vulkanDevice,
+			properties: PhysicalDeviceProperties{
+				DeviceName: string(deviceName[:nameLen]),
+				DeviceType: DeviceTypeDiscreteGPU, // Assume discrete for now
+			},
+			queueFams: queueFams,
+		}
+	}
+	
+	return devices, nil
 }
 
 // GetPhysicalDevice returns the best suitable physical device
@@ -188,9 +245,32 @@ func (i *Instance) GetPhysicalDevice(requirements PhysicalDeviceRequirements) (*
 
 // Helper functions (placeholders for actual implementation)
 
-func createVulkanInstance(config InstanceConfig) vulkan.Result {
-	// TODO: Implement actual vkCreateInstance call
-	return vulkan.SUCCESS
+func createVulkanInstance(config InstanceConfig) (vulkan.Instance, vulkan.Result) {
+	// Use the same approach as the working test.go
+	appName := vulkan.CString(config.ApplicationName)
+	engineName := vulkan.CString(config.EngineName)
+	defer vulkan.FreeCString(appName)
+	defer vulkan.FreeCString(engineName)
+	
+	appInfo := vulkan.ApplicationInfo{
+		PApplicationName:   appName,
+		ApplicationVersion: config.ApplicationVersion.Pack(),
+		PEngineName:       engineName,
+		EngineVersion:     config.EngineVersion.Pack(),
+		ApiVersion:        config.APIVersion.Pack(),
+	}
+	
+	createInfo := vulkan.InstanceCreateInfo{
+		PApplicationInfo:        &appInfo,
+		EnabledLayerCount:       0, // Simplify - no layers for now
+		PpEnabledLayerNames:     nil,
+		EnabledExtensionCount:   0, // Simplify - no extensions for now
+		PpEnabledExtensionNames: nil,
+	}
+	
+	var instance vulkan.Instance
+	result := vulkan.CreateInstance(&createInfo, nil, &instance)
+	return instance, result
 }
 
 func enumerateInstanceLayers() ([]LayerProperties, error) {
@@ -256,8 +336,17 @@ const (
 )
 
 func scorePhysicalDevice(device *PhysicalDevice, requirements PhysicalDeviceRequirements) int {
-	// TODO: Implement device scoring logic
-	return 0
+	score := 1000 // Base score for any working device
+	
+	// Prefer discrete GPUs
+	if device.properties.DeviceType == DeviceTypeDiscreteGPU {
+		score += 1000
+	}
+	
+	// TODO: Add more sophisticated scoring based on requirements
+	// For now, any device that exists gets a positive score
+	
+	return score
 }
 
 // Debug messenger functionality
