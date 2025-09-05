@@ -3,7 +3,6 @@ package vk
 import (
 	"fmt"
 	"github.com/christerso/vulkan-go/pkg/vulkan"
-	"unsafe"
 )
 
 // Instance represents a Vulkan instance with high-level management
@@ -140,9 +139,9 @@ func (i *Instance) Destroy() {
 		i.debug = nil
 	}
 
-	if i.handle != nil {
+	if i.handle != 0 {
 		// TODO: Call vkDestroyInstance
-		i.handle = nil
+		i.handle = 0
 	}
 }
 

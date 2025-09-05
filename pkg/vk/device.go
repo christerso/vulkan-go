@@ -413,9 +413,9 @@ func (pd *PhysicalDevice) CreateLogicalDevice(config DeviceConfig) (*LogicalDevi
 
 // Destroy cleans up the logical device
 func (d *LogicalDevice) Destroy() {
-	if d.handle != nil {
+	if d.handle != 0 {
 		// TODO: Call vkDestroyDevice
-		d.handle = nil
+		d.handle = 0
 	}
 	d.queues = nil
 }

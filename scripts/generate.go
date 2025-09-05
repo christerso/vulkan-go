@@ -7,10 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 	"strings"
-	"text/template"
 )
 
 const (
