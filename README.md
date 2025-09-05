@@ -95,17 +95,25 @@ func main() {
     }
     defer device.Destroy()
     
-    fmt.Printf("Successfully initialized Vulkan with device: %s\n", 
-               physicalDevice.GetProperties().DeviceName)
+    // Device is now ready for rendering operations
 }
 ```
+
+### Running the Demo
+
+```bash
+go build ./cmd/demo
+GODEBUG=cgocheck=0 ./demo.exe
+```
+
+The demo opens a window showing an animated rotating triangle using the Vulkan wrapper.
 
 ## 📚 Examples
 
 ### Triangle Rendering
 
 ```go
-// See cmd/triangle/main.go for complete example
+// See cmd/demo/main.go for complete example
 func renderTriangle() error {
     // Create instance with surface extensions
     config := vk.DefaultInstanceConfig()
@@ -253,27 +261,16 @@ func demonstrateMemoryManagement(device *vk.LogicalDevice) error {
 vulkan-go/
 ├── pkg/
 │   ├── vulkan/          # Low-level Vulkan bindings
-│   │   ├── api.go       # Core API functions  
-│   │   ├── types.go     # Vulkan types and constants
-│   │   ├── enums.go     # Vulkan enumerations
-│   │   ├── commands.go  # Function bindings
-│   │   ├── extensions.go# Extension support
-│   │   ├── loader.go    # Dynamic library loading
-│   │   └── version.go   # Version information
+│   │   └── core.go      # Core API functions and types
 │   └── vk/              # High-level Go wrapper
 │       ├── instance.go  # Instance management
 │       ├── device.go    # Device management
 │       ├── memory.go    # Memory allocation
-│       ├── buffer.go    # Buffer utilities
-│       ├── image.go     # Image utilities
-│       ├── pipeline.go  # Pipeline creation
-│       ├── command.go   # Command buffers
-│       ├── sync.go      # Synchronization
 │       └── errors.go    # Error handling
-└── cmd/                 # Example applications
-    ├── triangle/        # Basic triangle rendering
-    ├── compute/         # Compute shader example
-    └── generator/       # Code generation tool
+├── cmd/
+│   └── demo/            # Triangle rendering demo
+├── scripts/             # Build and generation tools
+└── assets/              # Shaders and resources
 ```
 
 ### Design Principles
