@@ -179,6 +179,14 @@ func (c CommandBuffer) BindVertexBuffer(b Buffer, offset DeviceSize) {
 	vkCmdBindVertexBuffers(c, 0, 1, &b, &offset)
 }
 
+// BindVertexBuffers binds buffers starting at firstBinding. The offsets slice
+// must match buffers in length.
+func (c CommandBuffer) BindVertexBuffers(firstBinding uint32, buffers []Buffer, offsets []DeviceSize) {
+	vkCmdBindVertexBuffers(c, firstBinding, uint32(len(buffers)), &buffers[0], &offsets[0])
+	runtime.KeepAlive(buffers)
+	runtime.KeepAlive(offsets)
+}
+
 // BindIndexBuffer binds an index buffer.
 func (c CommandBuffer) BindIndexBuffer(b Buffer, offset DeviceSize, indexType uint32) {
 	vkCmdBindIndexBuffer(c, b, offset, indexType)

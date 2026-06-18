@@ -5,15 +5,18 @@ layout(location = 1) in vec3 inNormal;
 
 layout(set = 0, binding = 0) uniform UBO {
     mat4 viewProj;
-    vec4 lightDir;   // xyz direction
-    vec4 params;     // x = heightScale
+    vec4 camPos;     // xyz camera position
+    vec4 lightDir;   // xyz direction toward the sun
+    vec4 params;     // x=heightScale y=time z=seaLevel w=fogDensity
+    vec4 skyTop;
+    vec4 skyHorizon;
 } ubo;
 
 layout(location = 0) out vec3 vNormal;
-layout(location = 1) out float vHeightN;
+layout(location = 1) out vec3 vWorld;
 
 void main() {
     gl_Position = ubo.viewProj * vec4(inPos, 1.0);
     vNormal = inNormal;
-    vHeightN = clamp(inPos.y / ubo.params.x * 0.5 + 0.5, 0.0, 1.0);
+    vWorld = inPos;
 }

@@ -68,6 +68,7 @@ type Format uint32
 const (
 	FormatUndefined         Format = 0
 	FormatR8G8B8A8Unorm     Format = 37
+	FormatR32Sfloat         Format = 100
 	FormatB8G8R8A8Unorm     Format = 44
 	FormatB8G8R8A8Srgb      Format = 50
 	FormatR32G32Sfloat      Format = 103

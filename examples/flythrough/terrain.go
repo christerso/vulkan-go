@@ -14,6 +14,21 @@ type Terrain struct {
 	Indices     []uint32
 	HeightScale float32
 	WorldSize   float32
+	N           int
+}
+
+// SampleAt returns the surface height and the up-component of the normal at a
+// world XZ position, using nearest grid lookup. Used to place objects on the
+// surface.
+func (t *Terrain) SampleAt(x, z float32) (height, slope float32) {
+	step := t.WorldSize / float32(t.N-1)
+	ix := int((x + t.WorldSize*0.5) / step)
+	iz := int((z + t.WorldSize*0.5) / step)
+	if ix < 0 || ix >= t.N || iz < 0 || iz >= t.N {
+		return 0, 1
+	}
+	v := t.Vertices[iz*t.N+ix]
+	return v.Py, v.Ny
 }
 
 // hash returns a deterministic pseudo-random value in [0,1) for a grid cell.
@@ -111,5 +126,5 @@ func GenerateTerrain(n int, worldSize, heightScale float32) Terrain {
 		}
 	}
 
-	return Terrain{Vertices: verts, Indices: indices, HeightScale: heightScale, WorldSize: worldSize}
+	return Terrain{Vertices: verts, Indices: indices, HeightScale: heightScale, WorldSize: worldSize, N: n}
 }
