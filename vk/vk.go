@@ -1,14 +1,14 @@
-// Package vk is a pure-Go Vulkan binding built on purego. It loads the Vulkan
-// loader at runtime with dlopen and resolves commands through
-// vkGetInstanceProcAddr and vkGetDeviceProcAddr, the same model volk uses in C.
-// No cgo and no C compiler are required.
+// Package vk is an ergonomic Go Vulkan API. It is a thin convenience layer on
+// top of the generated raw binding in the sibling vulkan package: vk owns no
+// FFI loading of its own. Every command goes through vulkan.Vk* function vars,
+// and every C struct passed across the boundary is a generated vulkan.Vk*
+// struct, so the ABI is guaranteed to match the one the generator validated.
 package vk
 
 import (
 	"fmt"
-	"unsafe"
 
-	"github.com/ebitengine/purego"
+	vulkan "github.com/christerso/vulkan-go/vulkan"
 )
 
 // Dispatchable handles are pointer-sized. Non-dispatchable handles are uint64
@@ -113,52 +113,13 @@ func VersionMajor(v uint32) uint32 { return (v >> 22) & 0x7F }
 func VersionMinor(v uint32) uint32 { return (v >> 12) & 0x3FF }
 func VersionPatch(v uint32) uint32 { return v & 0xFFF }
 
-var (
-	libVulkan             uintptr
-	vkGetInstanceProcAddr func(instance uintptr, name string) uintptr
-	vkGetDeviceProcAddr   func(device uintptr, name string) uintptr
-)
-
-// Load opens the Vulkan loader and resolves global commands. It is idempotent.
+// Load opens the Vulkan loader and resolves global commands through the
+// generated vulkan package. It is idempotent.
 func Load() error {
-	if libVulkan != 0 {
-		return nil
+	if err := vulkan.Load(); err != nil {
+		return fmt.Errorf("vk: %w", err)
 	}
-	var h uintptr
-	var err error
-	for _, name := range []string{"libvulkan.so.1", "libvulkan.so"} {
-		h, err = purego.Dlopen(name, purego.RTLD_NOW|purego.RTLD_GLOBAL)
-		if err == nil && h != 0 {
-			break
-		}
-	}
-	if h == 0 {
-		return fmt.Errorf("vk: load vulkan loader: %w", err)
-	}
-	libVulkan = h
-	purego.RegisterLibFunc(&vkGetInstanceProcAddr, h, "vkGetInstanceProcAddr")
-	loadGlobalCommands()
 	return nil
-}
-
-// bindInstanceProc resolves a command through vkGetInstanceProcAddr and binds it
-// to fptr. instance may be 0 for global commands. It panics if the command is
-// missing, since a missing required command is a programming or driver error.
-func bindInstanceProc(fptr any, instance uintptr, name string) {
-	addr := vkGetInstanceProcAddr(instance, name)
-	if addr == 0 {
-		panic("vk: missing instance command " + name)
-	}
-	purego.RegisterFunc(fptr, addr)
-}
-
-// bindDeviceProc resolves a device-level command through vkGetDeviceProcAddr.
-func bindDeviceProc(fptr any, device uintptr, name string) {
-	addr := vkGetDeviceProcAddr(device, name)
-	if addr == 0 {
-		panic("vk: missing device command " + name)
-	}
-	purego.RegisterFunc(fptr, addr)
 }
 
 // cstr returns a pointer to a NUL-terminated copy of s. The caller must keep the
@@ -179,6 +140,3 @@ func goStr(b []byte) string {
 	}
 	return string(b)
 }
-
-// ptr returns an unsafe.Pointer to v, or nil for a nil interface.
-func ptr[T any](v *T) unsafe.Pointer { return unsafe.Pointer(v) }

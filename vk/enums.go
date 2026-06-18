@@ -57,6 +57,7 @@ const (
 	stCommandBufferBeginInfo                uint32 = 42
 	stRenderPassBeginInfo                   uint32 = 43
 	stImageMemoryBarrier                    uint32 = 45
+	stSamplerCreateInfo                     uint32 = 31
 	stSwapchainCreateInfoKHR                uint32 = 1000001000
 	stPresentInfoKHR                        uint32 = 1000001001
 	stDebugUtilsMessengerCreateInfoEXT      uint32 = 1000128004
@@ -127,14 +128,17 @@ const (
 	StageVertexShader         uint32 = 0x00000008
 	StageEarlyFragmentTests   uint32 = 0x00000100
 	StageColorAttachmentOutput uint32 = 0x00000400
+	StageFragmentShader       uint32 = 0x00000080
 	StageTransfer             uint32 = 0x00001000
 	StageBottomOfPipe         uint32 = 0x00002000
 )
 
 // Access flag bits (VkAccessFlagBits).
 const (
+	AccessShaderRead                  uint32 = 0x00000020
 	AccessColorAttachmentWrite        uint32 = 0x00000100
 	AccessDepthStencilAttachmentWrite uint32 = 0x00000400
+	AccessTransferRead                uint32 = 0x00000800
 	AccessTransferWrite               uint32 = 0x00001000
 )
 
@@ -191,9 +195,11 @@ const (
 
 // Compare op (VkCompareOp).
 const (
+	CompareNever         uint32 = 0
 	CompareLess          uint32 = 1
 	CompareLessOrEqual   uint32 = 3
 	CompareGreaterOrEqual uint32 = 5
+	CompareAlways        uint32 = 7
 )
 
 // Index type (VkIndexType).

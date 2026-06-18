@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"runtime"
 	"unsafe"
+
+	vulkan "github.com/christerso/vulkan-go/vulkan"
 )
 
 // MemoryType mirrors VkMemoryType.
@@ -19,13 +21,6 @@ type MemoryHeap struct {
 	_     uint32
 }
 
-type physicalDeviceMemoryProperties struct {
-	memoryTypeCount uint32
-	memoryTypes     [32]MemoryType
-	memoryHeapCount uint32
-	memoryHeaps     [16]MemoryHeap
-}
-
 // MemoryRequirements mirrors VkMemoryRequirements.
 type MemoryRequirements struct {
 	Size           DeviceSize
@@ -33,109 +28,54 @@ type MemoryRequirements struct {
 	MemoryTypeBits uint32
 }
 
-type memoryAllocateInfo struct {
-	sType           uint32
-	pNext           unsafe.Pointer
-	allocationSize  DeviceSize
-	memoryTypeIndex uint32
-}
-
-var (
-	vkGetPhysicalDeviceMemoryProperties func(pd PhysicalDevice, pProps *physicalDeviceMemoryProperties)
-	vkAllocateMemory                    func(device Device, pInfo, pAllocator unsafe.Pointer, pMem *DeviceMemory) Result
-	vkFreeMemory                        func(device Device, mem DeviceMemory, pAllocator unsafe.Pointer)
-	vkMapMemory                         func(device Device, mem DeviceMemory, offset, size DeviceSize, flags uint32, ppData *unsafe.Pointer) Result
-	vkUnmapMemory                       func(device Device, mem DeviceMemory)
-	vkGetBufferMemoryRequirements       func(device Device, buffer Buffer, pReq *MemoryRequirements)
-	vkBindBufferMemory                  func(device Device, buffer Buffer, mem DeviceMemory, offset DeviceSize) Result
-	vkGetImageMemoryRequirements        func(device Device, image Image, pReq *MemoryRequirements)
-	vkBindImageMemory                   func(device Device, image Image, mem DeviceMemory, offset DeviceSize) Result
-	vkCreateBuffer                      func(device Device, pInfo, pAllocator unsafe.Pointer, pBuffer *Buffer) Result
-	vkDestroyBuffer                     func(device Device, buffer Buffer, pAllocator unsafe.Pointer)
-	vkCreateImage                       func(device Device, pInfo, pAllocator unsafe.Pointer, pImage *Image) Result
-	vkDestroyImage                      func(device Device, image Image, pAllocator unsafe.Pointer)
-	vkCreateImageView                   func(device Device, pInfo, pAllocator unsafe.Pointer, pView *ImageView) Result
-	vkDestroyImageView                  func(device Device, view ImageView, pAllocator unsafe.Pointer)
-)
-
-func loadMemoryCommands(device Device) {
-	h := uintptr(device)
-	bindDeviceProc(&vkAllocateMemory, h, "vkAllocateMemory")
-	bindDeviceProc(&vkFreeMemory, h, "vkFreeMemory")
-	bindDeviceProc(&vkMapMemory, h, "vkMapMemory")
-	bindDeviceProc(&vkUnmapMemory, h, "vkUnmapMemory")
-	bindDeviceProc(&vkGetBufferMemoryRequirements, h, "vkGetBufferMemoryRequirements")
-	bindDeviceProc(&vkBindBufferMemory, h, "vkBindBufferMemory")
-	bindDeviceProc(&vkGetImageMemoryRequirements, h, "vkGetImageMemoryRequirements")
-	bindDeviceProc(&vkBindImageMemory, h, "vkBindImageMemory")
-	bindDeviceProc(&vkCreateBuffer, h, "vkCreateBuffer")
-	bindDeviceProc(&vkDestroyBuffer, h, "vkDestroyBuffer")
-	bindDeviceProc(&vkCreateImage, h, "vkCreateImage")
-	bindDeviceProc(&vkDestroyImage, h, "vkDestroyImage")
-	bindDeviceProc(&vkCreateImageView, h, "vkCreateImageView")
-	bindDeviceProc(&vkDestroyImageView, h, "vkDestroyImageView")
-}
-
 // memoryTypeIndex finds a memory type supporting typeBits with the given
 // property flags.
 func (pd PhysicalDevice) memoryTypeIndex(typeBits, props uint32) (uint32, error) {
-	var mp physicalDeviceMemoryProperties
-	vkGetPhysicalDeviceMemoryProperties(pd, &mp)
-	for i := uint32(0); i < mp.memoryTypeCount; i++ {
-		if typeBits&(1<<i) != 0 && mp.memoryTypes[i].PropertyFlags&props == props {
+	var mp vulkan.VkPhysicalDeviceMemoryProperties
+	vulkan.VkGetPhysicalDeviceMemoryProperties(vulkan.VkPhysicalDevice(pd), unsafe.Pointer(&mp))
+	for i := uint32(0); i < mp.MemoryTypeCount; i++ {
+		if typeBits&(1<<i) != 0 && mp.MemoryTypes[i].PropertyFlags&props == props {
 			return i, nil
 		}
 	}
 	return 0, fmt.Errorf("vk: no memory type for bits %#x props %#x", typeBits, props)
 }
 
-// Allocation pairs a device memory object with the physical device used to pick
-// its type, so callers can free it.
+// allocate allocates device memory of the given requirements and properties.
 func (d Device) allocate(pd PhysicalDevice, req MemoryRequirements, props uint32) (DeviceMemory, error) {
 	idx, err := pd.memoryTypeIndex(req.MemoryTypeBits, props)
 	if err != nil {
 		return 0, err
 	}
-	ai := memoryAllocateInfo{
-		sType:           stMemoryAllocateInfo,
-		allocationSize:  req.Size,
-		memoryTypeIndex: idx,
+	ai := vulkan.VkMemoryAllocateInfo{
+		SType:           vulkan.VkStructureType(stMemoryAllocateInfo),
+		AllocationSize:  vulkan.VkDeviceSize(req.Size),
+		MemoryTypeIndex: idx,
 	}
-	var mem DeviceMemory
-	res := vkAllocateMemory(d, unsafe.Pointer(&ai), nil, &mem)
+	var mem vulkan.VkDeviceMemory
+	res := Result(vulkan.VkAllocateMemory(vulkan.VkDevice(d), unsafe.Pointer(&ai), nil, unsafe.Pointer(&mem)))
 	runtime.KeepAlive(&ai)
-	return mem, res.asError("vkAllocateMemory")
+	return DeviceMemory(mem), res.asError("vkAllocateMemory")
 }
 
 // FreeMemory frees device memory.
 func (d Device) FreeMemory(mem DeviceMemory) {
 	if mem != 0 {
-		vkFreeMemory(d, mem, nil)
+		vulkan.VkFreeMemory(vulkan.VkDevice(d), vulkan.VkDeviceMemory(mem), nil)
 	}
 }
 
 // Map maps device memory and returns a pointer to the start.
 func (d Device) Map(mem DeviceMemory, size DeviceSize) (unsafe.Pointer, error) {
 	var p unsafe.Pointer
-	res := vkMapMemory(d, mem, 0, size, 0, &p)
+	res := Result(vulkan.VkMapMemory(vulkan.VkDevice(d), vulkan.VkDeviceMemory(mem), 0, vulkan.VkDeviceSize(size), 0, unsafe.Pointer(&p)))
 	return p, res.asError("vkMapMemory")
 }
 
 // Unmap unmaps device memory.
-func (d Device) Unmap(mem DeviceMemory) { vkUnmapMemory(d, mem) }
+func (d Device) Unmap(mem DeviceMemory) { vulkan.VkUnmapMemory(vulkan.VkDevice(d), vulkan.VkDeviceMemory(mem)) }
 
-type bufferCreateInfo struct {
-	sType                 uint32
-	pNext                 unsafe.Pointer
-	flags                 uint32
-	size                  DeviceSize
-	usage                 uint32
-	sharingMode           uint32
-	queueFamilyIndexCount uint32
-	pQueueFamilyIndices   *uint32
-}
-
-// Buffer bundles a buffer handle, its memory, and size.
+// AllocBuffer bundles a buffer handle, its memory, and size.
 type AllocBuffer struct {
 	Buffer Buffer
 	Memory DeviceMemory
@@ -153,31 +93,31 @@ type BufferConfig struct {
 
 // CreateBuffer creates a buffer, allocates memory for it, and binds them.
 func (d Device) CreateBuffer(pd PhysicalDevice, cfg BufferConfig) (AllocBuffer, error) {
-	ci := bufferCreateInfo{
-		sType:       stBufferCreateInfo,
-		size:        cfg.Size,
-		usage:       cfg.Usage,
-		sharingMode: SharingModeExclusive,
+	ci := vulkan.VkBufferCreateInfo{
+		SType:       vulkan.VkStructureType(stBufferCreateInfo),
+		Size:        vulkan.VkDeviceSize(cfg.Size),
+		Usage:       cfg.Usage,
+		SharingMode: vulkan.VkSharingMode(SharingModeExclusive),
 	}
-	var buf Buffer
-	res := vkCreateBuffer(d, unsafe.Pointer(&ci), nil, &buf)
+	var buf vulkan.VkBuffer
+	res := Result(vulkan.VkCreateBuffer(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&buf)))
 	runtime.KeepAlive(&ci)
 	if err := res.asError("vkCreateBuffer"); err != nil {
 		return AllocBuffer{}, err
 	}
 	var req MemoryRequirements
-	vkGetBufferMemoryRequirements(d, buf, &req)
+	vulkan.VkGetBufferMemoryRequirements(vulkan.VkDevice(d), buf, unsafe.Pointer(&req))
 	mem, err := d.allocate(pd, req, cfg.Properties)
 	if err != nil {
-		vkDestroyBuffer(d, buf, nil)
+		vulkan.VkDestroyBuffer(vulkan.VkDevice(d), buf, nil)
 		return AllocBuffer{}, err
 	}
-	if res := vkBindBufferMemory(d, buf, mem, 0); !res.Ok() {
-		vkDestroyBuffer(d, buf, nil)
-		vkFreeMemory(d, mem, nil)
+	if res := Result(vulkan.VkBindBufferMemory(vulkan.VkDevice(d), buf, vulkan.VkDeviceMemory(mem), 0)); !res.Ok() {
+		vulkan.VkDestroyBuffer(vulkan.VkDevice(d), buf, nil)
+		vulkan.VkFreeMemory(vulkan.VkDevice(d), vulkan.VkDeviceMemory(mem), nil)
 		return AllocBuffer{}, res.asError("vkBindBufferMemory")
 	}
-	ab := AllocBuffer{Buffer: buf, Memory: mem, Size: cfg.Size}
+	ab := AllocBuffer{Buffer: Buffer(buf), Memory: mem, Size: cfg.Size}
 	if cfg.Map {
 		p, err := d.Map(mem, cfg.Size)
 		if err != nil {
@@ -192,29 +132,11 @@ func (d Device) CreateBuffer(pd PhysicalDevice, cfg BufferConfig) (AllocBuffer, 
 // DestroyBuffer frees a buffer and its memory.
 func (d Device) DestroyBuffer(b AllocBuffer) {
 	if b.Buffer != 0 {
-		vkDestroyBuffer(d, b.Buffer, nil)
+		vulkan.VkDestroyBuffer(vulkan.VkDevice(d), vulkan.VkBuffer(b.Buffer), nil)
 	}
 	if b.Memory != 0 {
-		vkFreeMemory(d, b.Memory, nil)
+		vulkan.VkFreeMemory(vulkan.VkDevice(d), vulkan.VkDeviceMemory(b.Memory), nil)
 	}
-}
-
-type imageCreateInfo struct {
-	sType                 uint32
-	pNext                 unsafe.Pointer
-	flags                 uint32
-	imageType             uint32
-	format                Format
-	extent                Extent3D
-	mipLevels             uint32
-	arrayLayers           uint32
-	samples               uint32
-	tiling                uint32
-	usage                 uint32
-	sharingMode           uint32
-	queueFamilyIndexCount uint32
-	pQueueFamilyIndices   *uint32
-	initialLayout         ImageLayout
 }
 
 // AllocImage bundles an image with its memory.
@@ -225,96 +147,73 @@ type AllocImage struct {
 
 // CreateImage2D creates a 2D image and binds device-local memory.
 func (d Device) CreateImage2D(pd PhysicalDevice, format Format, extent Extent2D, usage uint32) (AllocImage, error) {
-	ci := imageCreateInfo{
-		sType:         stImageCreateInfo,
-		imageType:     ImageType2D,
-		format:        format,
-		extent:        Extent3D{Width: extent.Width, Height: extent.Height, Depth: 1},
-		mipLevels:     1,
-		arrayLayers:   1,
-		samples:       SampleCount1,
-		tiling:        ImageTilingOptimal,
-		usage:         usage,
-		sharingMode:   SharingModeExclusive,
-		initialLayout: LayoutUndefined,
+	ci := vulkan.VkImageCreateInfo{
+		SType:         vulkan.VkStructureType(stImageCreateInfo),
+		ImageType:     vulkan.VkImageType(ImageType2D),
+		Format:        vulkan.VkFormat(format),
+		Extent:        vulkan.VkExtent3D{Width: extent.Width, Height: extent.Height, Depth: 1},
+		MipLevels:     1,
+		ArrayLayers:   1,
+		Samples:       SampleCount1,
+		Tiling:        vulkan.VkImageTiling(ImageTilingOptimal),
+		Usage:         usage,
+		SharingMode:   vulkan.VkSharingMode(SharingModeExclusive),
+		InitialLayout: vulkan.VkImageLayout(LayoutUndefined),
 	}
-	var img Image
-	res := vkCreateImage(d, unsafe.Pointer(&ci), nil, &img)
+	var img vulkan.VkImage
+	res := Result(vulkan.VkCreateImage(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&img)))
 	runtime.KeepAlive(&ci)
 	if err := res.asError("vkCreateImage"); err != nil {
 		return AllocImage{}, err
 	}
 	var req MemoryRequirements
-	vkGetImageMemoryRequirements(d, img, &req)
+	vulkan.VkGetImageMemoryRequirements(vulkan.VkDevice(d), img, unsafe.Pointer(&req))
 	mem, err := d.allocate(pd, req, MemoryDeviceLocal)
 	if err != nil {
-		vkDestroyImage(d, img, nil)
+		vulkan.VkDestroyImage(vulkan.VkDevice(d), img, nil)
 		return AllocImage{}, err
 	}
-	if res := vkBindImageMemory(d, img, mem, 0); !res.Ok() {
-		vkDestroyImage(d, img, nil)
-		vkFreeMemory(d, mem, nil)
+	if res := Result(vulkan.VkBindImageMemory(vulkan.VkDevice(d), img, vulkan.VkDeviceMemory(mem), 0)); !res.Ok() {
+		vulkan.VkDestroyImage(vulkan.VkDevice(d), img, nil)
+		vulkan.VkFreeMemory(vulkan.VkDevice(d), vulkan.VkDeviceMemory(mem), nil)
 		return AllocImage{}, res.asError("vkBindImageMemory")
 	}
-	return AllocImage{Image: img, Memory: mem}, nil
+	return AllocImage{Image: Image(img), Memory: mem}, nil
 }
 
 // DestroyImage frees an image and its memory.
 func (d Device) DestroyImage(a AllocImage) {
 	if a.Image != 0 {
-		vkDestroyImage(d, a.Image, nil)
+		vulkan.VkDestroyImage(vulkan.VkDevice(d), vulkan.VkImage(a.Image), nil)
 	}
 	if a.Memory != 0 {
-		vkFreeMemory(d, a.Memory, nil)
+		vulkan.VkFreeMemory(vulkan.VkDevice(d), vulkan.VkDeviceMemory(a.Memory), nil)
 	}
-}
-
-type imageSubresourceRange struct {
-	aspectMask     uint32
-	baseMipLevel   uint32
-	levelCount     uint32
-	baseArrayLayer uint32
-	layerCount     uint32
-}
-
-type componentMapping struct {
-	r, g, b, a uint32
-}
-
-type imageViewCreateInfo struct {
-	sType            uint32
-	pNext            unsafe.Pointer
-	flags            uint32
-	image            Image
-	viewType         uint32
-	format           Format
-	components       componentMapping
-	subresourceRange imageSubresourceRange
 }
 
 // CreateImageView creates a 2D image view over the given aspect.
 func (d Device) CreateImageView(img Image, format Format, aspect uint32) (ImageView, error) {
-	ci := imageViewCreateInfo{
-		sType:    stImageViewCreateInfo,
-		image:    img,
-		viewType: ImageViewType2D,
-		format:   format,
-		subresourceRange: imageSubresourceRange{
-			aspectMask: aspect,
-			levelCount: 1,
-			layerCount: 1,
+	ci := vulkan.VkImageViewCreateInfo{
+		SType:    vulkan.VkStructureType(stImageViewCreateInfo),
+		Image:    vulkan.VkImage(img),
+		ViewType: vulkan.VkImageViewType(ImageViewType2D),
+		Format:   vulkan.VkFormat(format),
+		SubresourceRange: vulkan.VkImageSubresourceRange{
+			AspectMask: aspect,
+			LevelCount: 1,
+			LayerCount: 1,
 		},
 	}
-	var view ImageView
-	res := vkCreateImageView(d, unsafe.Pointer(&ci), nil, &view)
+	var view vulkan.VkImageView
+	res := Result(vulkan.VkCreateImageView(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&view)))
 	runtime.KeepAlive(&ci)
-	return view, res.asError("vkCreateImageView")
+	return ImageView(view), res.asError("vkCreateImageView")
 }
 
 // DestroyImageView destroys an image view.
 func (d Device) DestroyImageView(v ImageView) {
 	if v != 0 {
-		vkDestroyImageView(d, v, nil)
+		vulkan.VkDestroyImageView(vulkan.VkDevice(d), vulkan.VkImageView(v), nil)
 	}
 }
 

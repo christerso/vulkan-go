@@ -1,6 +1,10 @@
 package vk
 
-import "unsafe"
+import (
+	"unsafe"
+
+	vulkan "github.com/christerso/vulkan-go/vulkan"
+)
 
 // Color space (VkColorSpaceKHR).
 const ColorSpaceSRGBNonlinear uint32 = 0
@@ -25,69 +29,52 @@ type SurfaceCapabilities struct {
 	SupportedUsageFlags     uint32
 }
 
-var (
-	vkDestroySurfaceKHR                      func(instance Instance, surface SurfaceKHR, pAllocator unsafe.Pointer)
-	vkGetPhysicalDeviceSurfaceSupportKHR     func(pd PhysicalDevice, family uint32, surface SurfaceKHR, pSupported *uint32) Result
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR func(pd PhysicalDevice, surface SurfaceKHR, pCaps *SurfaceCapabilities) Result
-	vkGetPhysicalDeviceSurfaceFormatsKHR     func(pd PhysicalDevice, surface SurfaceKHR, pCount *uint32, pFormats *SurfaceFormat) Result
-	vkGetPhysicalDeviceSurfacePresentModesKHR func(pd PhysicalDevice, surface SurfaceKHR, pCount *uint32, pModes *PresentMode) Result
-)
-
-func loadSurfaceInstanceCommands(instance Instance) {
-	h := uintptr(instance)
-	bindInstanceProc(&vkDestroySurfaceKHR, h, "vkDestroySurfaceKHR")
-	bindInstanceProc(&vkGetPhysicalDeviceSurfaceSupportKHR, h, "vkGetPhysicalDeviceSurfaceSupportKHR")
-	bindInstanceProc(&vkGetPhysicalDeviceSurfaceCapabilitiesKHR, h, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR")
-	bindInstanceProc(&vkGetPhysicalDeviceSurfaceFormatsKHR, h, "vkGetPhysicalDeviceSurfaceFormatsKHR")
-	bindInstanceProc(&vkGetPhysicalDeviceSurfacePresentModesKHR, h, "vkGetPhysicalDeviceSurfacePresentModesKHR")
-}
-
 // DestroySurface destroys a surface created by the window backend.
 func (i Instance) DestroySurface(s SurfaceKHR) {
 	if s != 0 {
-		vkDestroySurfaceKHR(i, s, nil)
+		vulkan.VkDestroySurfaceKHR(vulkan.VkInstance(i), vulkan.VkSurfaceKHR(s), nil)
 	}
 }
 
 // SurfaceSupport reports whether the queue family can present to the surface.
 func (pd PhysicalDevice) SurfaceSupport(family uint32, s SurfaceKHR) bool {
 	var supported uint32
-	vkGetPhysicalDeviceSurfaceSupportKHR(pd, family, s, &supported)
+	vulkan.VkGetPhysicalDeviceSurfaceSupportKHR(vulkan.VkPhysicalDevice(pd), family, vulkan.VkSurfaceKHR(s), unsafe.Pointer(&supported))
 	return supported != 0
 }
 
 // SurfaceCapabilities returns the surface capabilities.
 func (pd PhysicalDevice) SurfaceCapabilities(s SurfaceKHR) (SurfaceCapabilities, error) {
 	var caps SurfaceCapabilities
-	res := vkGetPhysicalDeviceSurfaceCapabilitiesKHR(pd, s, &caps)
+	res := Result(vulkan.VkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan.VkPhysicalDevice(pd), vulkan.VkSurfaceKHR(s), unsafe.Pointer(&caps)))
 	return caps, res.asError("vkGetPhysicalDeviceSurfaceCapabilitiesKHR")
 }
 
 // SurfaceFormats returns the supported surface formats.
 func (pd PhysicalDevice) SurfaceFormats(s SurfaceKHR) ([]SurfaceFormat, error) {
 	var count uint32
-	if res := vkGetPhysicalDeviceSurfaceFormatsKHR(pd, s, &count, nil); !res.Ok() {
+	if res := Result(vulkan.VkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.VkPhysicalDevice(pd), vulkan.VkSurfaceKHR(s), unsafe.Pointer(&count), nil)); !res.Ok() {
 		return nil, res.asError("vkGetPhysicalDeviceSurfaceFormatsKHR(count)")
 	}
 	if count == 0 {
 		return nil, nil
 	}
 	formats := make([]SurfaceFormat, count)
-	res := vkGetPhysicalDeviceSurfaceFormatsKHR(pd, s, &count, &formats[0])
+	res := Result(vulkan.VkGetPhysicalDeviceSurfaceFormatsKHR(vulkan.VkPhysicalDevice(pd), vulkan.VkSurfaceKHR(s), unsafe.Pointer(&count), unsafe.Pointer(&formats[0])))
 	return formats, res.asError("vkGetPhysicalDeviceSurfaceFormatsKHR(list)")
 }
 
 // SurfacePresentModes returns the supported present modes.
 func (pd PhysicalDevice) SurfacePresentModes(s SurfaceKHR) ([]PresentMode, error) {
 	var count uint32
-	if res := vkGetPhysicalDeviceSurfacePresentModesKHR(pd, s, &count, nil); !res.Ok() {
+	if res := Result(vulkan.VkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.VkPhysicalDevice(pd), vulkan.VkSurfaceKHR(s), unsafe.Pointer(&count), nil)); !res.Ok() {
 		return nil, res.asError("vkGetPhysicalDeviceSurfacePresentModesKHR(count)")
 	}
 	if count == 0 {
 		return nil, nil
 	}
 	modes := make([]PresentMode, count)
-	res := vkGetPhysicalDeviceSurfacePresentModesKHR(pd, s, &count, &modes[0])
+	res := Result(vulkan.VkGetPhysicalDeviceSurfacePresentModesKHR(vulkan.VkPhysicalDevice(pd), vulkan.VkSurfaceKHR(s), unsafe.Pointer(&count), unsafe.Pointer(&modes[0])))
 	return modes, res.asError("vkGetPhysicalDeviceSurfacePresentModesKHR(list)")
 }
 

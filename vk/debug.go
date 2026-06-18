@@ -7,6 +7,8 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+
+	vulkan "github.com/christerso/vulkan-go/vulkan"
 )
 
 // Debug messenger severity and type bits.
@@ -27,27 +29,12 @@ const ExtDebugUtils = "VK_EXT_debug_utils"
 // ValidationLayer is the standard Khronos validation layer name.
 const ValidationLayer = "VK_LAYER_KHRONOS_validation"
 
-type debugUtilsMessengerCreateInfo struct {
-	sType           uint32
-	pNext           unsafe.Pointer
-	flags           uint32
-	messageSeverity uint32
-	messageType     uint32
-	pfnUserCallback uintptr
-	pUserData       unsafe.Pointer
-}
-
 // DebugMessenger wraps a VkDebugUtilsMessengerEXT.
 type DebugMessenger struct {
-	instance  Instance
-	handle    uint64
-	callback  uintptr
+	instance Instance
+	handle   uint64
+	callback uintptr
 }
-
-var (
-	vkCreateDebugUtilsMessengerEXT  func(instance Instance, pInfo, pAllocator unsafe.Pointer, pMessenger *uint64) Result
-	vkDestroyDebugUtilsMessengerEXT func(instance Instance, messenger uint64, pAllocator unsafe.Pointer)
-)
 
 // debugCallback is the Go function exposed to Vulkan as a C callback. It reads
 // pMessage (offset 40 in VkDebugUtilsMessengerCallbackDataEXT) and prints
@@ -66,19 +53,18 @@ func debugCallback(severity uint32, _ uint32, data uintptr, _ uintptr) uintptr {
 
 // CreateDebugMessenger installs a debug messenger that reports validation
 // warnings and errors. The instance must have been created with the debug utils
-// extension enabled.
+// extension enabled. The create/destroy commands are resolved through the
+// generated vulkan package (vulkan.LoadInstance binds them).
 func (i Instance) CreateDebugMessenger() (DebugMessenger, error) {
-	bindInstanceProc(&vkCreateDebugUtilsMessengerEXT, uintptr(i), "vkCreateDebugUtilsMessengerEXT")
-	bindInstanceProc(&vkDestroyDebugUtilsMessengerEXT, uintptr(i), "vkDestroyDebugUtilsMessengerEXT")
 	cb := purego.NewCallback(debugCallback)
-	ci := debugUtilsMessengerCreateInfo{
-		sType:           stDebugUtilsMessengerCreateInfoEXT,
-		messageSeverity: debugSeverityWarning | debugSeverityError,
-		messageType:     debugTypeGeneral | debugTypeValidation | debugTypePerformance,
-		pfnUserCallback: cb,
+	ci := vulkan.VkDebugUtilsMessengerCreateInfoEXT{
+		SType:           vulkan.VkStructureType(stDebugUtilsMessengerCreateInfoEXT),
+		MessageSeverity: debugSeverityWarning | debugSeverityError,
+		MessageType:     debugTypeGeneral | debugTypeValidation | debugTypePerformance,
+		PfnUserCallback: cb,
 	}
-	var handle uint64
-	res := vkCreateDebugUtilsMessengerEXT(i, unsafe.Pointer(&ci), nil, &handle)
+	var handle vulkan.VkDebugUtilsMessengerEXT
+	res := Result(vulkan.VkCreateDebugUtilsMessengerEXT(vulkan.VkInstance(i), unsafe.Pointer(&ci), nil, unsafe.Pointer(&handle)))
 	runtime.KeepAlive(&ci)
 	if err := res.asError("vkCreateDebugUtilsMessengerEXT"); err != nil {
 		return DebugMessenger{}, err
@@ -89,6 +75,6 @@ func (i Instance) CreateDebugMessenger() (DebugMessenger, error) {
 // Destroy removes the debug messenger.
 func (m DebugMessenger) Destroy() {
 	if m.handle != 0 {
-		vkDestroyDebugUtilsMessengerEXT(m.instance, m.handle, nil)
+		vulkan.VkDestroyDebugUtilsMessengerEXT(vulkan.VkInstance(m.instance), m.handle, nil)
 	}
 }

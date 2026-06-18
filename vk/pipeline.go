@@ -3,85 +3,9 @@ package vk
 import (
 	"runtime"
 	"unsafe"
+
+	vulkan "github.com/christerso/vulkan-go/vulkan"
 )
-
-// ---- shader module ----
-
-type shaderModuleCreateInfo struct {
-	sType    uint32
-	pNext    unsafe.Pointer
-	flags    uint32
-	codeSize uintptr
-	pCode    *uint32
-}
-
-// ---- render pass ----
-
-type attachmentDescription struct {
-	flags          uint32
-	format         Format
-	samples        uint32
-	loadOp         uint32
-	storeOp        uint32
-	stencilLoadOp  uint32
-	stencilStoreOp uint32
-	initialLayout  ImageLayout
-	finalLayout    ImageLayout
-}
-
-type attachmentReference struct {
-	attachment uint32
-	layout     ImageLayout
-}
-
-type subpassDescription struct {
-	flags                   uint32
-	pipelineBindPoint       uint32
-	inputAttachmentCount    uint32
-	pInputAttachments       *attachmentReference
-	colorAttachmentCount    uint32
-	pColorAttachments       *attachmentReference
-	pResolveAttachments     *attachmentReference
-	pDepthStencilAttachment *attachmentReference
-	preserveAttachmentCount uint32
-	pPreserveAttachments    *uint32
-}
-
-type subpassDependency struct {
-	srcSubpass      uint32
-	dstSubpass      uint32
-	srcStageMask    uint32
-	dstStageMask    uint32
-	srcAccessMask   uint32
-	dstAccessMask   uint32
-	dependencyFlags uint32
-}
-
-type renderPassCreateInfo struct {
-	sType           uint32
-	pNext           unsafe.Pointer
-	flags           uint32
-	attachmentCount uint32
-	pAttachments    *attachmentDescription
-	subpassCount    uint32
-	pSubpasses      *subpassDescription
-	dependencyCount uint32
-	pDependencies   *subpassDependency
-}
-
-type framebufferCreateInfo struct {
-	sType           uint32
-	pNext           unsafe.Pointer
-	flags           uint32
-	renderPass      RenderPass
-	attachmentCount uint32
-	pAttachments    *ImageView
-	width           uint32
-	height          uint32
-	layers          uint32
-}
-
-// ---- pipeline state ----
 
 // VertexInputBinding mirrors VkVertexInputBindingDescription.
 type VertexInputBinding struct {
@@ -98,375 +22,118 @@ type VertexInputAttribute struct {
 	Offset   uint32
 }
 
-type pipelineShaderStageCreateInfo struct {
-	sType               uint32
-	pNext               unsafe.Pointer
-	flags               uint32
-	stage               uint32
-	module              ShaderModule
-	pName               *byte
-	pSpecializationInfo unsafe.Pointer
-}
-
-type pipelineVertexInputStateCreateInfo struct {
-	sType                           uint32
-	pNext                           unsafe.Pointer
-	flags                           uint32
-	vertexBindingDescriptionCount   uint32
-	pVertexBindingDescriptions      *VertexInputBinding
-	vertexAttributeDescriptionCount uint32
-	pVertexAttributeDescriptions    *VertexInputAttribute
-}
-
-type pipelineInputAssemblyStateCreateInfo struct {
-	sType                  uint32
-	pNext                  unsafe.Pointer
-	flags                  uint32
-	topology               uint32
-	primitiveRestartEnable uint32
-}
-
-type pipelineViewportStateCreateInfo struct {
-	sType         uint32
-	pNext         unsafe.Pointer
-	flags         uint32
-	viewportCount uint32
-	pViewports    *Viewport
-	scissorCount  uint32
-	pScissors     *Rect2D
-}
-
-type pipelineRasterizationStateCreateInfo struct {
-	sType                   uint32
-	pNext                   unsafe.Pointer
-	flags                   uint32
-	depthClampEnable        uint32
-	rasterizerDiscardEnable uint32
-	polygonMode             uint32
-	cullMode                uint32
-	frontFace               uint32
-	depthBiasEnable         uint32
-	depthBiasConstantFactor float32
-	depthBiasClamp          float32
-	depthBiasSlopeFactor    float32
-	lineWidth               float32
-}
-
-type pipelineMultisampleStateCreateInfo struct {
-	sType                 uint32
-	pNext                 unsafe.Pointer
-	flags                 uint32
-	rasterizationSamples  uint32
-	sampleShadingEnable   uint32
-	minSampleShading      float32
-	pSampleMask           *uint32
-	alphaToCoverageEnable uint32
-	alphaToOneEnable      uint32
-}
-
-type stencilOpState struct {
-	failOp      uint32
-	passOp      uint32
-	depthFailOp uint32
-	compareOp   uint32
-	compareMask uint32
-	writeMask   uint32
-	reference   uint32
-}
-
-type pipelineDepthStencilStateCreateInfo struct {
-	sType                 uint32
-	pNext                 unsafe.Pointer
-	flags                 uint32
-	depthTestEnable       uint32
-	depthWriteEnable      uint32
-	depthCompareOp        uint32
-	depthBoundsTestEnable uint32
-	stencilTestEnable     uint32
-	front                 stencilOpState
-	back                  stencilOpState
-	minDepthBounds        float32
-	maxDepthBounds        float32
-}
-
-type pipelineColorBlendAttachmentState struct {
-	blendEnable         uint32
-	srcColorBlendFactor uint32
-	dstColorBlendFactor uint32
-	colorBlendOp        uint32
-	srcAlphaBlendFactor uint32
-	dstAlphaBlendFactor uint32
-	alphaBlendOp        uint32
-	colorWriteMask      uint32
-}
-
-type pipelineColorBlendStateCreateInfo struct {
-	sType           uint32
-	pNext           unsafe.Pointer
-	flags           uint32
-	logicOpEnable   uint32
-	logicOp         uint32
-	attachmentCount uint32
-	pAttachments    *pipelineColorBlendAttachmentState
-	blendConstants  [4]float32
-}
-
-type pipelineDynamicStateCreateInfo struct {
-	sType             uint32
-	pNext             unsafe.Pointer
-	flags             uint32
-	dynamicStateCount uint32
-	pDynamicStates    *uint32
-}
-
-type pushConstantRange struct {
-	stageFlags uint32
-	offset     uint32
-	size       uint32
-}
-
-type pipelineLayoutCreateInfo struct {
-	sType                  uint32
-	pNext                  unsafe.Pointer
-	flags                  uint32
-	setLayoutCount         uint32
-	pSetLayouts            *DescriptorSetLayout
-	pushConstantRangeCount uint32
-	pPushConstantRanges    *pushConstantRange
-}
-
-type graphicsPipelineCreateInfo struct {
-	sType               uint32
-	pNext               unsafe.Pointer
-	flags               uint32
-	stageCount          uint32
-	pStages             *pipelineShaderStageCreateInfo
-	pVertexInputState   *pipelineVertexInputStateCreateInfo
-	pInputAssemblyState *pipelineInputAssemblyStateCreateInfo
-	pTessellationState  unsafe.Pointer
-	pViewportState      *pipelineViewportStateCreateInfo
-	pRasterizationState *pipelineRasterizationStateCreateInfo
-	pMultisampleState   *pipelineMultisampleStateCreateInfo
-	pDepthStencilState  *pipelineDepthStencilStateCreateInfo
-	pColorBlendState    *pipelineColorBlendStateCreateInfo
-	pDynamicState       *pipelineDynamicStateCreateInfo
-	layout              PipelineLayout
-	renderPass          RenderPass
-	subpass             uint32
-	basePipelineHandle  Pipeline
-	basePipelineIndex   int32
-}
-
-// ---- descriptors ----
-
-type descriptorSetLayoutBinding struct {
-	binding            uint32
-	descriptorType     DescriptorType
-	descriptorCount    uint32
-	stageFlags         uint32
-	pImmutableSamplers *Sampler
-}
-
-type descriptorSetLayoutCreateInfo struct {
-	sType        uint32
-	pNext        unsafe.Pointer
-	flags        uint32
-	bindingCount uint32
-	pBindings    *descriptorSetLayoutBinding
-}
-
-type descriptorPoolSize struct {
-	typ             DescriptorType
-	descriptorCount uint32
-}
-
-type descriptorPoolCreateInfo struct {
-	sType         uint32
-	pNext         unsafe.Pointer
-	flags         uint32
-	maxSets       uint32
-	poolSizeCount uint32
-	pPoolSizes    *descriptorPoolSize
-}
-
-type descriptorSetAllocateInfo struct {
-	sType              uint32
-	pNext              unsafe.Pointer
-	descriptorPool     DescriptorPool
-	descriptorSetCount uint32
-	pSetLayouts        *DescriptorSetLayout
-}
-
-type descriptorBufferInfo struct {
-	buffer Buffer
-	offset DeviceSize
-	rang   DeviceSize
-}
-
-type writeDescriptorSet struct {
-	sType            uint32
-	pNext            unsafe.Pointer
-	dstSet           DescriptorSet
-	dstBinding       uint32
-	dstArrayElement  uint32
-	descriptorCount  uint32
-	descriptorType   DescriptorType
-	pImageInfo       unsafe.Pointer
-	pBufferInfo      *descriptorBufferInfo
-	pTexelBufferView unsafe.Pointer
-}
-
-var (
-	vkCreateShaderModule        func(device Device, pInfo, pAllocator unsafe.Pointer, pModule *ShaderModule) Result
-	vkDestroyShaderModule       func(device Device, module ShaderModule, pAllocator unsafe.Pointer)
-	vkCreateRenderPass          func(device Device, pInfo, pAllocator unsafe.Pointer, pRP *RenderPass) Result
-	vkDestroyRenderPass         func(device Device, rp RenderPass, pAllocator unsafe.Pointer)
-	vkCreateFramebuffer         func(device Device, pInfo, pAllocator unsafe.Pointer, pFB *Framebuffer) Result
-	vkDestroyFramebuffer        func(device Device, fb Framebuffer, pAllocator unsafe.Pointer)
-	vkCreateDescriptorSetLayout func(device Device, pInfo, pAllocator unsafe.Pointer, pLayout *DescriptorSetLayout) Result
-	vkDestroyDescriptorSetLayout func(device Device, layout DescriptorSetLayout, pAllocator unsafe.Pointer)
-	vkCreatePipelineLayout      func(device Device, pInfo, pAllocator unsafe.Pointer, pLayout *PipelineLayout) Result
-	vkDestroyPipelineLayout     func(device Device, layout PipelineLayout, pAllocator unsafe.Pointer)
-	vkCreateGraphicsPipelines   func(device Device, cache uint64, count uint32, pInfos, pAllocator unsafe.Pointer, pPipelines *Pipeline) Result
-	vkDestroyPipeline           func(device Device, pipeline Pipeline, pAllocator unsafe.Pointer)
-	vkCreateDescriptorPool      func(device Device, pInfo, pAllocator unsafe.Pointer, pPool *DescriptorPool) Result
-	vkDestroyDescriptorPool     func(device Device, pool DescriptorPool, pAllocator unsafe.Pointer)
-	vkAllocateDescriptorSets    func(device Device, pInfo unsafe.Pointer, pSets *DescriptorSet) Result
-	vkUpdateDescriptorSets      func(device Device, writeCount uint32, pWrites unsafe.Pointer, copyCount uint32, pCopies unsafe.Pointer)
-)
-
-func loadPipelineCommands(device Device) {
-	h := uintptr(device)
-	bindDeviceProc(&vkCreateShaderModule, h, "vkCreateShaderModule")
-	bindDeviceProc(&vkDestroyShaderModule, h, "vkDestroyShaderModule")
-	bindDeviceProc(&vkCreateRenderPass, h, "vkCreateRenderPass")
-	bindDeviceProc(&vkDestroyRenderPass, h, "vkDestroyRenderPass")
-	bindDeviceProc(&vkCreateFramebuffer, h, "vkCreateFramebuffer")
-	bindDeviceProc(&vkDestroyFramebuffer, h, "vkDestroyFramebuffer")
-	bindDeviceProc(&vkCreateDescriptorSetLayout, h, "vkCreateDescriptorSetLayout")
-	bindDeviceProc(&vkDestroyDescriptorSetLayout, h, "vkDestroyDescriptorSetLayout")
-	bindDeviceProc(&vkCreatePipelineLayout, h, "vkCreatePipelineLayout")
-	bindDeviceProc(&vkDestroyPipelineLayout, h, "vkDestroyPipelineLayout")
-	bindDeviceProc(&vkCreateGraphicsPipelines, h, "vkCreateGraphicsPipelines")
-	bindDeviceProc(&vkDestroyPipeline, h, "vkDestroyPipeline")
-	bindDeviceProc(&vkCreateDescriptorPool, h, "vkCreateDescriptorPool")
-	bindDeviceProc(&vkDestroyDescriptorPool, h, "vkDestroyDescriptorPool")
-	bindDeviceProc(&vkAllocateDescriptorSets, h, "vkAllocateDescriptorSets")
-	bindDeviceProc(&vkUpdateDescriptorSets, h, "vkUpdateDescriptorSets")
-}
-
 // CreateShaderModule creates a shader module from SPIR-V bytes. The length must
 // be a multiple of four.
 func (d Device) CreateShaderModule(code []byte) (ShaderModule, error) {
-	ci := shaderModuleCreateInfo{
-		sType:    stShaderModuleCreateInfo,
-		codeSize: uintptr(len(code)),
-		pCode:    (*uint32)(unsafe.Pointer(&code[0])),
+	ci := vulkan.VkShaderModuleCreateInfo{
+		SType:    vulkan.VkStructureType(stShaderModuleCreateInfo),
+		CodeSize: uintptr(len(code)),
+		PCode:    unsafe.Pointer(&code[0]),
 	}
-	var m ShaderModule
-	res := vkCreateShaderModule(d, unsafe.Pointer(&ci), nil, &m)
+	var m vulkan.VkShaderModule
+	res := Result(vulkan.VkCreateShaderModule(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&m)))
 	runtime.KeepAlive(&ci)
 	runtime.KeepAlive(code)
-	return m, res.asError("vkCreateShaderModule")
+	return ShaderModule(m), res.asError("vkCreateShaderModule")
 }
 
 // DestroyShaderModule destroys a shader module.
 func (d Device) DestroyShaderModule(m ShaderModule) {
 	if m != 0 {
-		vkDestroyShaderModule(d, m, nil)
+		vulkan.VkDestroyShaderModule(vulkan.VkDevice(d), vulkan.VkShaderModule(m), nil)
 	}
 }
 
 // CreateColorDepthRenderPass creates a render pass with one color attachment
 // that is cleared and presented, and one depth attachment that is cleared.
 func (d Device) CreateColorDepthRenderPass(colorFormat, depthFormat Format) (RenderPass, error) {
-	attachments := []attachmentDescription{
+	attachments := []vulkan.VkAttachmentDescription{
 		{
-			format:        colorFormat,
-			samples:       SampleCount1,
-			loadOp:        AttachmentLoadOpClear,
-			storeOp:       AttachmentStoreOpStore,
-			stencilLoadOp: AttachmentLoadOpDontCare,
-			stencilStoreOp: AttachmentStoreOpDontCare,
-			initialLayout: LayoutUndefined,
-			finalLayout:   LayoutPresentSrcKHR,
+			Format:         vulkan.VkFormat(colorFormat),
+			Samples:        SampleCount1,
+			LoadOp:         vulkan.VkAttachmentLoadOp(AttachmentLoadOpClear),
+			StoreOp:        vulkan.VkAttachmentStoreOp(AttachmentStoreOpStore),
+			StencilLoadOp:  vulkan.VkAttachmentLoadOp(AttachmentLoadOpDontCare),
+			StencilStoreOp: vulkan.VkAttachmentStoreOp(AttachmentStoreOpDontCare),
+			InitialLayout:  vulkan.VkImageLayout(LayoutUndefined),
+			FinalLayout:    vulkan.VkImageLayout(LayoutPresentSrcKHR),
 		},
 		{
-			format:         depthFormat,
-			samples:        SampleCount1,
-			loadOp:         AttachmentLoadOpClear,
-			storeOp:        AttachmentStoreOpDontCare,
-			stencilLoadOp:  AttachmentLoadOpDontCare,
-			stencilStoreOp: AttachmentStoreOpDontCare,
-			initialLayout:  LayoutUndefined,
-			finalLayout:    LayoutDepthStencilAttachmentOptimal,
+			Format:         vulkan.VkFormat(depthFormat),
+			Samples:        SampleCount1,
+			LoadOp:         vulkan.VkAttachmentLoadOp(AttachmentLoadOpClear),
+			StoreOp:        vulkan.VkAttachmentStoreOp(AttachmentStoreOpDontCare),
+			StencilLoadOp:  vulkan.VkAttachmentLoadOp(AttachmentLoadOpDontCare),
+			StencilStoreOp: vulkan.VkAttachmentStoreOp(AttachmentStoreOpDontCare),
+			InitialLayout:  vulkan.VkImageLayout(LayoutUndefined),
+			FinalLayout:    vulkan.VkImageLayout(LayoutDepthStencilAttachmentOptimal),
 		},
 	}
-	colorRef := attachmentReference{attachment: 0, layout: LayoutColorAttachmentOptimal}
-	depthRef := attachmentReference{attachment: 1, layout: LayoutDepthStencilAttachmentOptimal}
-	subpass := subpassDescription{
-		pipelineBindPoint:       BindPointGraphics,
-		colorAttachmentCount:    1,
-		pColorAttachments:       &colorRef,
-		pDepthStencilAttachment: &depthRef,
+	colorRef := vulkan.VkAttachmentReference{Attachment: 0, Layout: vulkan.VkImageLayout(LayoutColorAttachmentOptimal)}
+	depthRef := vulkan.VkAttachmentReference{Attachment: 1, Layout: vulkan.VkImageLayout(LayoutDepthStencilAttachmentOptimal)}
+	subpass := vulkan.VkSubpassDescription{
+		PipelineBindPoint:       vulkan.VkPipelineBindPoint(BindPointGraphics),
+		ColorAttachmentCount:    1,
+		PColorAttachments:       unsafe.Pointer(&colorRef),
+		PDepthStencilAttachment: unsafe.Pointer(&depthRef),
 	}
-	dep := subpassDependency{
-		srcSubpass:    SubpassExternal,
-		dstSubpass:    0,
-		srcStageMask:  StageColorAttachmentOutput | StageEarlyFragmentTests,
-		dstStageMask:  StageColorAttachmentOutput | StageEarlyFragmentTests,
-		srcAccessMask: 0,
-		dstAccessMask: AccessColorAttachmentWrite | AccessDepthStencilAttachmentWrite,
+	dep := vulkan.VkSubpassDependency{
+		SrcSubpass:    SubpassExternal,
+		DstSubpass:    0,
+		SrcStageMask:  StageColorAttachmentOutput | StageEarlyFragmentTests,
+		DstStageMask:  StageColorAttachmentOutput | StageEarlyFragmentTests,
+		SrcAccessMask: 0,
+		DstAccessMask: AccessColorAttachmentWrite | AccessDepthStencilAttachmentWrite,
 	}
-	ci := renderPassCreateInfo{
-		sType:           stRenderPassCreateInfo,
-		attachmentCount: uint32(len(attachments)),
-		pAttachments:    &attachments[0],
-		subpassCount:    1,
-		pSubpasses:      &subpass,
-		dependencyCount: 1,
-		pDependencies:   &dep,
+	ci := vulkan.VkRenderPassCreateInfo{
+		SType:           vulkan.VkStructureType(stRenderPassCreateInfo),
+		AttachmentCount: uint32(len(attachments)),
+		PAttachments:    unsafe.Pointer(&attachments[0]),
+		SubpassCount:    1,
+		PSubpasses:      unsafe.Pointer(&subpass),
+		DependencyCount: 1,
+		PDependencies:   unsafe.Pointer(&dep),
 	}
-	var rp RenderPass
-	res := vkCreateRenderPass(d, unsafe.Pointer(&ci), nil, &rp)
+	var rp vulkan.VkRenderPass
+	res := Result(vulkan.VkCreateRenderPass(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&rp)))
 	runtime.KeepAlive(&ci)
 	runtime.KeepAlive(attachments)
 	runtime.KeepAlive(&colorRef)
 	runtime.KeepAlive(&depthRef)
 	runtime.KeepAlive(&subpass)
 	runtime.KeepAlive(&dep)
-	return rp, res.asError("vkCreateRenderPass")
+	return RenderPass(rp), res.asError("vkCreateRenderPass")
 }
 
 // DestroyRenderPass destroys a render pass.
 func (d Device) DestroyRenderPass(rp RenderPass) {
 	if rp != 0 {
-		vkDestroyRenderPass(d, rp, nil)
+		vulkan.VkDestroyRenderPass(vulkan.VkDevice(d), vulkan.VkRenderPass(rp), nil)
 	}
 }
 
 // CreateFramebuffer creates a framebuffer over the given attachments.
 func (d Device) CreateFramebuffer(rp RenderPass, attachments []ImageView, extent Extent2D) (Framebuffer, error) {
-	ci := framebufferCreateInfo{
-		sType:           stFramebufferCreateInfo,
-		renderPass:      rp,
-		attachmentCount: uint32(len(attachments)),
-		pAttachments:    &attachments[0],
-		width:           extent.Width,
-		height:          extent.Height,
-		layers:          1,
+	ci := vulkan.VkFramebufferCreateInfo{
+		SType:           vulkan.VkStructureType(stFramebufferCreateInfo),
+		RenderPass:      vulkan.VkRenderPass(rp),
+		AttachmentCount: uint32(len(attachments)),
+		PAttachments:    unsafe.Pointer(&attachments[0]),
+		Width:           extent.Width,
+		Height:          extent.Height,
+		Layers:          1,
 	}
-	var fb Framebuffer
-	res := vkCreateFramebuffer(d, unsafe.Pointer(&ci), nil, &fb)
+	var fb vulkan.VkFramebuffer
+	res := Result(vulkan.VkCreateFramebuffer(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&fb)))
 	runtime.KeepAlive(&ci)
 	runtime.KeepAlive(attachments)
-	return fb, res.asError("vkCreateFramebuffer")
+	return Framebuffer(fb), res.asError("vkCreateFramebuffer")
 }
 
 // DestroyFramebuffer destroys a framebuffer.
 func (d Device) DestroyFramebuffer(fb Framebuffer) {
 	if fb != 0 {
-		vkDestroyFramebuffer(d, fb, nil)
+		vulkan.VkDestroyFramebuffer(vulkan.VkDevice(d), vulkan.VkFramebuffer(fb), nil)
 	}
 }
 
@@ -480,62 +147,62 @@ type DescriptorBinding struct {
 
 // CreateDescriptorSetLayout creates a descriptor set layout.
 func (d Device) CreateDescriptorSetLayout(bindings []DescriptorBinding) (DescriptorSetLayout, error) {
-	vkb := make([]descriptorSetLayoutBinding, len(bindings))
+	vkb := make([]vulkan.VkDescriptorSetLayoutBinding, len(bindings))
 	for i, b := range bindings {
-		vkb[i] = descriptorSetLayoutBinding{
-			binding:         b.Binding,
-			descriptorType:  b.Type,
-			descriptorCount: b.Count,
-			stageFlags:      b.Stages,
+		vkb[i] = vulkan.VkDescriptorSetLayoutBinding{
+			Binding:         b.Binding,
+			DescriptorType:  vulkan.VkDescriptorType(b.Type),
+			DescriptorCount: b.Count,
+			StageFlags:      b.Stages,
 		}
 	}
-	ci := descriptorSetLayoutCreateInfo{
-		sType:        stDescriptorSetLayoutCreateInfo,
-		bindingCount: uint32(len(vkb)),
-		pBindings:    &vkb[0],
+	ci := vulkan.VkDescriptorSetLayoutCreateInfo{
+		SType:        vulkan.VkStructureType(stDescriptorSetLayoutCreateInfo),
+		BindingCount: uint32(len(vkb)),
+		PBindings:    unsafe.Pointer(&vkb[0]),
 	}
-	var layout DescriptorSetLayout
-	res := vkCreateDescriptorSetLayout(d, unsafe.Pointer(&ci), nil, &layout)
+	var layout vulkan.VkDescriptorSetLayout
+	res := Result(vulkan.VkCreateDescriptorSetLayout(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&layout)))
 	runtime.KeepAlive(&ci)
 	runtime.KeepAlive(vkb)
-	return layout, res.asError("vkCreateDescriptorSetLayout")
+	return DescriptorSetLayout(layout), res.asError("vkCreateDescriptorSetLayout")
 }
 
 // DestroyDescriptorSetLayout destroys a descriptor set layout.
 func (d Device) DestroyDescriptorSetLayout(l DescriptorSetLayout) {
 	if l != 0 {
-		vkDestroyDescriptorSetLayout(d, l, nil)
+		vulkan.VkDestroyDescriptorSetLayout(vulkan.VkDevice(d), vulkan.VkDescriptorSetLayout(l), nil)
 	}
 }
 
 // CreatePipelineLayout creates a pipeline layout from set layouts and an
 // optional push constant range (size 0 means none).
 func (d Device) CreatePipelineLayout(setLayouts []DescriptorSetLayout, pushStage, pushSize uint32) (PipelineLayout, error) {
-	ci := pipelineLayoutCreateInfo{
-		sType:          stPipelineLayoutCreateInfo,
-		setLayoutCount: uint32(len(setLayouts)),
+	ci := vulkan.VkPipelineLayoutCreateInfo{
+		SType:          vulkan.VkStructureType(stPipelineLayoutCreateInfo),
+		SetLayoutCount: uint32(len(setLayouts)),
 	}
 	if len(setLayouts) > 0 {
-		ci.pSetLayouts = &setLayouts[0]
+		ci.PSetLayouts = unsafe.Pointer(&setLayouts[0])
 	}
-	var pcr pushConstantRange
+	var pcr vulkan.VkPushConstantRange
 	if pushSize > 0 {
-		pcr = pushConstantRange{stageFlags: pushStage, offset: 0, size: pushSize}
-		ci.pushConstantRangeCount = 1
-		ci.pPushConstantRanges = &pcr
+		pcr = vulkan.VkPushConstantRange{StageFlags: pushStage, Offset: 0, Size: pushSize}
+		ci.PushConstantRangeCount = 1
+		ci.PPushConstantRanges = unsafe.Pointer(&pcr)
 	}
-	var layout PipelineLayout
-	res := vkCreatePipelineLayout(d, unsafe.Pointer(&ci), nil, &layout)
+	var layout vulkan.VkPipelineLayout
+	res := Result(vulkan.VkCreatePipelineLayout(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&layout)))
 	runtime.KeepAlive(&ci)
 	runtime.KeepAlive(setLayouts)
 	runtime.KeepAlive(&pcr)
-	return layout, res.asError("vkCreatePipelineLayout")
+	return PipelineLayout(layout), res.asError("vkCreatePipelineLayout")
 }
 
 // DestroyPipelineLayout destroys a pipeline layout.
 func (d Device) DestroyPipelineLayout(l PipelineLayout) {
 	if l != 0 {
-		vkDestroyPipelineLayout(d, l, nil)
+		vulkan.VkDestroyPipelineLayout(vulkan.VkDevice(d), vulkan.VkPipelineLayout(l), nil)
 	}
 }
 
@@ -560,80 +227,90 @@ type GraphicsPipelineConfig struct {
 // scissor.
 func (d Device) CreateGraphicsPipeline(cfg GraphicsPipelineConfig) (Pipeline, error) {
 	entry := cstr("main")
-	stages := []pipelineShaderStageCreateInfo{
-		{sType: stPipelineShaderStageCreateInfo, stage: ShaderStageVertex, module: cfg.VertexShader, pName: entry},
-		{sType: stPipelineShaderStageCreateInfo, stage: ShaderStageFragment, module: cfg.FragShader, pName: entry},
+	stages := []vulkan.VkPipelineShaderStageCreateInfo{
+		{SType: vulkan.VkStructureType(stPipelineShaderStageCreateInfo), Stage: ShaderStageVertex, Module: vulkan.VkShaderModule(cfg.VertexShader), PName: unsafe.Pointer(entry)},
+		{SType: vulkan.VkStructureType(stPipelineShaderStageCreateInfo), Stage: ShaderStageFragment, Module: vulkan.VkShaderModule(cfg.FragShader), PName: unsafe.Pointer(entry)},
 	}
 
-	vi := pipelineVertexInputStateCreateInfo{
-		sType:                         stPipelineVertexInputStateCreateInfo,
-		vertexBindingDescriptionCount: uint32(len(cfg.Bindings)),
-		vertexAttributeDescriptionCount: uint32(len(cfg.Attributes)),
+	// Build the generated vertex input binding/attribute arrays.
+	vkBindings := make([]vulkan.VkVertexInputBindingDescription, len(cfg.Bindings))
+	for i, b := range cfg.Bindings {
+		vkBindings[i] = vulkan.VkVertexInputBindingDescription{Binding: b.Binding, Stride: b.Stride, InputRate: vulkan.VkVertexInputRate(b.InputRate)}
 	}
-	if len(cfg.Bindings) > 0 {
-		vi.pVertexBindingDescriptions = &cfg.Bindings[0]
-	}
-	if len(cfg.Attributes) > 0 {
-		vi.pVertexAttributeDescriptions = &cfg.Attributes[0]
+	vkAttrs := make([]vulkan.VkVertexInputAttributeDescription, len(cfg.Attributes))
+	for i, a := range cfg.Attributes {
+		vkAttrs[i] = vulkan.VkVertexInputAttributeDescription{Location: a.Location, Binding: a.Binding, Format: vulkan.VkFormat(a.Format), Offset: a.Offset}
 	}
 
-	ia := pipelineInputAssemblyStateCreateInfo{sType: stPipelineInputAssemblyStateCreateInfo, topology: cfg.Topology}
-	vp := pipelineViewportStateCreateInfo{sType: stPipelineViewportStateCreateInfo, viewportCount: 1, scissorCount: 1}
-	rs := pipelineRasterizationStateCreateInfo{
-		sType:       stPipelineRasterizationStateCreateInfo,
-		polygonMode: cfg.PolygonMode,
-		cullMode:    cfg.CullMode,
-		frontFace:   cfg.FrontFace,
-		lineWidth:   1.0,
+	vi := vulkan.VkPipelineVertexInputStateCreateInfo{
+		SType:                           vulkan.VkStructureType(stPipelineVertexInputStateCreateInfo),
+		VertexBindingDescriptionCount:   uint32(len(vkBindings)),
+		VertexAttributeDescriptionCount: uint32(len(vkAttrs)),
 	}
-	ms := pipelineMultisampleStateCreateInfo{sType: stPipelineMultisampleStateCreateInfo, rasterizationSamples: SampleCount1}
-	ds := pipelineDepthStencilStateCreateInfo{
-		sType:          stPipelineDepthStencilStateCreateInfo,
-		depthCompareOp: CompareLess,
-		maxDepthBounds: 1.0,
+	if len(vkBindings) > 0 {
+		vi.PVertexBindingDescriptions = unsafe.Pointer(&vkBindings[0])
+	}
+	if len(vkAttrs) > 0 {
+		vi.PVertexAttributeDescriptions = unsafe.Pointer(&vkAttrs[0])
+	}
+
+	ia := vulkan.VkPipelineInputAssemblyStateCreateInfo{SType: vulkan.VkStructureType(stPipelineInputAssemblyStateCreateInfo), Topology: vulkan.VkPrimitiveTopology(cfg.Topology)}
+	vp := vulkan.VkPipelineViewportStateCreateInfo{SType: vulkan.VkStructureType(stPipelineViewportStateCreateInfo), ViewportCount: 1, ScissorCount: 1}
+	rs := vulkan.VkPipelineRasterizationStateCreateInfo{
+		SType:       vulkan.VkStructureType(stPipelineRasterizationStateCreateInfo),
+		PolygonMode: vulkan.VkPolygonMode(cfg.PolygonMode),
+		CullMode:    cfg.CullMode,
+		FrontFace:   vulkan.VkFrontFace(cfg.FrontFace),
+		LineWidth:   1.0,
+	}
+	ms := vulkan.VkPipelineMultisampleStateCreateInfo{SType: vulkan.VkStructureType(stPipelineMultisampleStateCreateInfo), RasterizationSamples: SampleCount1}
+	ds := vulkan.VkPipelineDepthStencilStateCreateInfo{
+		SType:          vulkan.VkStructureType(stPipelineDepthStencilStateCreateInfo),
+		DepthCompareOp: vulkan.VkCompareOp(CompareLess),
+		MaxDepthBounds: 1.0,
 	}
 	if cfg.DepthTest {
-		ds.depthTestEnable = 1
+		ds.DepthTestEnable = 1
 	}
 	if cfg.DepthWrite {
-		ds.depthWriteEnable = 1
+		ds.DepthWriteEnable = 1
 	}
-	cb := pipelineColorBlendAttachmentState{colorWriteMask: 0xF}
-	cbs := pipelineColorBlendStateCreateInfo{
-		sType:           stPipelineColorBlendStateCreateInfo,
-		attachmentCount: 1,
-		pAttachments:    &cb,
+	cb := vulkan.VkPipelineColorBlendAttachmentState{ColorWriteMask: 0xF}
+	cbs := vulkan.VkPipelineColorBlendStateCreateInfo{
+		SType:           vulkan.VkStructureType(stPipelineColorBlendStateCreateInfo),
+		AttachmentCount: 1,
+		PAttachments:    unsafe.Pointer(&cb),
 	}
-	dynStates := []uint32{DynamicStateViewport, DynamicStateScissor}
-	dyn := pipelineDynamicStateCreateInfo{
-		sType:             stPipelineDynamicStateCreateInfo,
-		dynamicStateCount: uint32(len(dynStates)),
-		pDynamicStates:    &dynStates[0],
+	dynStates := []vulkan.VkDynamicState{vulkan.VkDynamicState(DynamicStateViewport), vulkan.VkDynamicState(DynamicStateScissor)}
+	dyn := vulkan.VkPipelineDynamicStateCreateInfo{
+		SType:             vulkan.VkStructureType(stPipelineDynamicStateCreateInfo),
+		DynamicStateCount: uint32(len(dynStates)),
+		PDynamicStates:    unsafe.Pointer(&dynStates[0]),
 	}
 
-	gp := graphicsPipelineCreateInfo{
-		sType:               stGraphicsPipelineCreateInfo,
-		stageCount:          uint32(len(stages)),
-		pStages:             &stages[0],
-		pVertexInputState:   &vi,
-		pInputAssemblyState: &ia,
-		pViewportState:      &vp,
-		pRasterizationState: &rs,
-		pMultisampleState:   &ms,
-		pDepthStencilState:  &ds,
-		pColorBlendState:    &cbs,
-		pDynamicState:       &dyn,
-		layout:              cfg.Layout,
-		renderPass:          cfg.RenderPass,
-		basePipelineIndex:   -1,
+	gp := vulkan.VkGraphicsPipelineCreateInfo{
+		SType:               vulkan.VkStructureType(stGraphicsPipelineCreateInfo),
+		StageCount:          uint32(len(stages)),
+		PStages:             unsafe.Pointer(&stages[0]),
+		PVertexInputState:   unsafe.Pointer(&vi),
+		PInputAssemblyState: unsafe.Pointer(&ia),
+		PViewportState:      unsafe.Pointer(&vp),
+		PRasterizationState: unsafe.Pointer(&rs),
+		PMultisampleState:   unsafe.Pointer(&ms),
+		PDepthStencilState:  unsafe.Pointer(&ds),
+		PColorBlendState:    unsafe.Pointer(&cbs),
+		PDynamicState:       unsafe.Pointer(&dyn),
+		Layout:              vulkan.VkPipelineLayout(cfg.Layout),
+		RenderPass:          vulkan.VkRenderPass(cfg.RenderPass),
+		BasePipelineIndex:   -1,
 	}
-	var pipeline Pipeline
-	res := vkCreateGraphicsPipelines(d, 0, 1, unsafe.Pointer(&gp), nil, &pipeline)
+	var pipeline vulkan.VkPipeline
+	res := Result(vulkan.VkCreateGraphicsPipelines(vulkan.VkDevice(d), 0, 1, unsafe.Pointer(&gp), nil, unsafe.Pointer(&pipeline)))
 	runtime.KeepAlive(entry)
 	runtime.KeepAlive(stages)
 	runtime.KeepAlive(&vi)
-	runtime.KeepAlive(cfg.Bindings)
-	runtime.KeepAlive(cfg.Attributes)
+	runtime.KeepAlive(vkBindings)
+	runtime.KeepAlive(vkAttrs)
 	runtime.KeepAlive(&ia)
 	runtime.KeepAlive(&vp)
 	runtime.KeepAlive(&rs)
@@ -644,70 +321,70 @@ func (d Device) CreateGraphicsPipeline(cfg GraphicsPipelineConfig) (Pipeline, er
 	runtime.KeepAlive(dynStates)
 	runtime.KeepAlive(&dyn)
 	runtime.KeepAlive(&gp)
-	return pipeline, res.asError("vkCreateGraphicsPipelines")
+	return Pipeline(pipeline), res.asError("vkCreateGraphicsPipelines")
 }
 
 // DestroyPipeline destroys a pipeline.
 func (d Device) DestroyPipeline(p Pipeline) {
 	if p != 0 {
-		vkDestroyPipeline(d, p, nil)
+		vulkan.VkDestroyPipeline(vulkan.VkDevice(d), vulkan.VkPipeline(p), nil)
 	}
 }
 
 // CreateDescriptorPool creates a descriptor pool sized for the given counts.
 func (d Device) CreateDescriptorPool(maxSets uint32, sizes map[DescriptorType]uint32) (DescriptorPool, error) {
-	poolSizes := make([]descriptorPoolSize, 0, len(sizes))
+	poolSizes := make([]vulkan.VkDescriptorPoolSize, 0, len(sizes))
 	for t, c := range sizes {
-		poolSizes = append(poolSizes, descriptorPoolSize{typ: t, descriptorCount: c})
+		poolSizes = append(poolSizes, vulkan.VkDescriptorPoolSize{Type: vulkan.VkDescriptorType(t), DescriptorCount: c})
 	}
-	ci := descriptorPoolCreateInfo{
-		sType:         stDescriptorPoolCreateInfo,
-		maxSets:       maxSets,
-		poolSizeCount: uint32(len(poolSizes)),
-		pPoolSizes:    &poolSizes[0],
+	ci := vulkan.VkDescriptorPoolCreateInfo{
+		SType:         vulkan.VkStructureType(stDescriptorPoolCreateInfo),
+		MaxSets:       maxSets,
+		PoolSizeCount: uint32(len(poolSizes)),
+		PPoolSizes:    unsafe.Pointer(&poolSizes[0]),
 	}
-	var pool DescriptorPool
-	res := vkCreateDescriptorPool(d, unsafe.Pointer(&ci), nil, &pool)
+	var pool vulkan.VkDescriptorPool
+	res := Result(vulkan.VkCreateDescriptorPool(vulkan.VkDevice(d), unsafe.Pointer(&ci), nil, unsafe.Pointer(&pool)))
 	runtime.KeepAlive(&ci)
 	runtime.KeepAlive(poolSizes)
-	return pool, res.asError("vkCreateDescriptorPool")
+	return DescriptorPool(pool), res.asError("vkCreateDescriptorPool")
 }
 
 // DestroyDescriptorPool destroys a descriptor pool and its sets.
 func (d Device) DestroyDescriptorPool(p DescriptorPool) {
 	if p != 0 {
-		vkDestroyDescriptorPool(d, p, nil)
+		vulkan.VkDestroyDescriptorPool(vulkan.VkDevice(d), vulkan.VkDescriptorPool(p), nil)
 	}
 }
 
 // AllocateDescriptorSet allocates a single descriptor set with the given layout.
 func (d Device) AllocateDescriptorSet(pool DescriptorPool, layout DescriptorSetLayout) (DescriptorSet, error) {
-	l := layout
-	ai := descriptorSetAllocateInfo{
-		sType:              stDescriptorSetAllocateInfo,
-		descriptorPool:     pool,
-		descriptorSetCount: 1,
-		pSetLayouts:        &l,
+	l := vulkan.VkDescriptorSetLayout(layout)
+	ai := vulkan.VkDescriptorSetAllocateInfo{
+		SType:              vulkan.VkStructureType(stDescriptorSetAllocateInfo),
+		DescriptorPool:     vulkan.VkDescriptorPool(pool),
+		DescriptorSetCount: 1,
+		PSetLayouts:        unsafe.Pointer(&l),
 	}
-	var set DescriptorSet
-	res := vkAllocateDescriptorSets(d, unsafe.Pointer(&ai), &set)
+	var set vulkan.VkDescriptorSet
+	res := Result(vulkan.VkAllocateDescriptorSets(vulkan.VkDevice(d), unsafe.Pointer(&ai), unsafe.Pointer(&set)))
 	runtime.KeepAlive(&ai)
 	runtime.KeepAlive(&l)
-	return set, res.asError("vkAllocateDescriptorSets")
+	return DescriptorSet(set), res.asError("vkAllocateDescriptorSets")
 }
 
 // UpdateBufferDescriptor points a uniform/storage buffer descriptor at a buffer.
 func (d Device) UpdateBufferDescriptor(set DescriptorSet, binding uint32, t DescriptorType, buf Buffer, offset, rang DeviceSize) {
-	bi := descriptorBufferInfo{buffer: buf, offset: offset, rang: rang}
-	w := writeDescriptorSet{
-		sType:           stWriteDescriptorSet,
-		dstSet:          set,
-		dstBinding:      binding,
-		descriptorCount: 1,
-		descriptorType:  t,
-		pBufferInfo:     &bi,
+	bi := vulkan.VkDescriptorBufferInfo{Buffer: vulkan.VkBuffer(buf), Offset: vulkan.VkDeviceSize(offset), Range: vulkan.VkDeviceSize(rang)}
+	w := vulkan.VkWriteDescriptorSet{
+		SType:           vulkan.VkStructureType(stWriteDescriptorSet),
+		DstSet:          vulkan.VkDescriptorSet(set),
+		DstBinding:      binding,
+		DescriptorCount: 1,
+		DescriptorType:  vulkan.VkDescriptorType(t),
+		PBufferInfo:     unsafe.Pointer(&bi),
 	}
-	vkUpdateDescriptorSets(d, 1, unsafe.Pointer(&w), 0, nil)
+	vulkan.VkUpdateDescriptorSets(vulkan.VkDevice(d), 1, unsafe.Pointer(&w), 0, nil)
 	runtime.KeepAlive(&bi)
 	runtime.KeepAlive(&w)
 }

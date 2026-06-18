@@ -3,55 +3,9 @@ package vk
 import (
 	"runtime"
 	"unsafe"
+
+	vulkan "github.com/christerso/vulkan-go/vulkan"
 )
-
-// Global and instance-level command pointers.
-var (
-	vkCreateInstance            func(pCreateInfo, pAllocator, pInstance unsafe.Pointer) Result
-	vkDestroyInstance           func(instance Instance, pAllocator unsafe.Pointer)
-	vkEnumeratePhysicalDevices  func(instance Instance, pCount *uint32, pDevices *PhysicalDevice) Result
-	vkGetPhysicalDeviceProperties func(pd PhysicalDevice, pProps unsafe.Pointer)
-	vkGetPhysicalDeviceQueueFamilyProperties func(pd PhysicalDevice, pCount *uint32, pProps *QueueFamilyProperties)
-)
-
-func loadGlobalCommands() {
-	bindInstanceProc(&vkCreateInstance, 0, "vkCreateInstance")
-}
-
-func loadInstanceCommands(instance Instance) {
-	h := uintptr(instance)
-	bindInstanceProc(&vkDestroyInstance, h, "vkDestroyInstance")
-	bindInstanceProc(&vkEnumeratePhysicalDevices, h, "vkEnumeratePhysicalDevices")
-	bindInstanceProc(&vkGetPhysicalDeviceProperties, h, "vkGetPhysicalDeviceProperties")
-	bindInstanceProc(&vkGetPhysicalDeviceQueueFamilyProperties, h, "vkGetPhysicalDeviceQueueFamilyProperties")
-	bindInstanceProc(&vkGetDeviceProcAddr, h, "vkGetDeviceProcAddr")
-	loadDeviceLevelInstanceCommands(instance)
-	loadSurfaceInstanceCommands(instance)
-}
-
-// applicationInfo mirrors VkApplicationInfo. Field order and natural alignment
-// match the C struct on amd64.
-type applicationInfo struct {
-	sType              uint32
-	pNext              unsafe.Pointer
-	pApplicationName   *byte
-	applicationVersion uint32
-	pEngineName        *byte
-	engineVersion      uint32
-	apiVersion         uint32
-}
-
-// instanceCreateInfo mirrors VkInstanceCreateInfo.
-type instanceCreateInfo struct {
-	sType                   uint32
-	pNext                   unsafe.Pointer
-	flags                   uint32
-	pApplicationInfo        *applicationInfo
-	enabledLayerCount       uint32
-	ppEnabledLayerNames     **byte
-	enabledExtensionCount   uint32
-	ppEnabledExtensionNames **byte
-}
 
 // InstanceConfig describes how to create an instance.
 type InstanceConfig struct {
@@ -70,27 +24,27 @@ func CreateInstance(cfg InstanceConfig) (Instance, error) {
 	}
 	appName := cstr(cfg.ApplicationName)
 	engName := cstr(cfg.EngineName)
-	app := applicationInfo{
-		sType:            stApplicationInfo,
-		pApplicationName: appName,
-		pEngineName:      engName,
-		apiVersion:       apiVer,
+	app := vulkan.VkApplicationInfo{
+		SType:            vulkan.VkStructureType(stApplicationInfo),
+		PApplicationName: unsafe.Pointer(appName),
+		PEngineName:      unsafe.Pointer(engName),
+		ApiVersion:       apiVer,
 	}
 
 	layers, layersPin := cstrArray(cfg.Layers)
 	exts, extsPin := cstrArray(cfg.Extensions)
 
-	ci := instanceCreateInfo{
-		sType:                 stInstanceCreateInfo,
-		pApplicationInfo:      &app,
-		enabledLayerCount:     uint32(len(cfg.Layers)),
-		ppEnabledLayerNames:   layers,
-		enabledExtensionCount: uint32(len(cfg.Extensions)),
-		ppEnabledExtensionNames: exts,
+	ci := vulkan.VkInstanceCreateInfo{
+		SType:                   vulkan.VkStructureType(stInstanceCreateInfo),
+		PApplicationInfo:        unsafe.Pointer(&app),
+		EnabledLayerCount:       uint32(len(cfg.Layers)),
+		PpEnabledLayerNames:     unsafe.Pointer(layers),
+		EnabledExtensionCount:   uint32(len(cfg.Extensions)),
+		PpEnabledExtensionNames: unsafe.Pointer(exts),
 	}
 
-	var inst Instance
-	res := vkCreateInstance(unsafe.Pointer(&ci), nil, unsafe.Pointer(&inst))
+	var inst vulkan.VkInstance
+	res := Result(vulkan.VkCreateInstance(unsafe.Pointer(&ci), nil, unsafe.Pointer(&inst)))
 	runtime.KeepAlive(appName)
 	runtime.KeepAlive(engName)
 	runtime.KeepAlive(layersPin)
@@ -100,14 +54,14 @@ func CreateInstance(cfg InstanceConfig) (Instance, error) {
 	if err := res.asError("vkCreateInstance"); err != nil {
 		return 0, err
 	}
-	loadInstanceCommands(inst)
-	return inst, nil
+	vulkan.LoadInstance(inst)
+	return Instance(inst), nil
 }
 
 // Destroy destroys the instance.
 func (i Instance) Destroy() {
 	if i != 0 {
-		vkDestroyInstance(i, nil)
+		vulkan.VkDestroyInstance(vulkan.VkInstance(i), nil)
 	}
 }
 
@@ -150,21 +104,6 @@ func (t PhysicalDeviceType) String() string {
 	}
 }
 
-// physicalDeviceProperties mirrors the head of VkPhysicalDeviceProperties. The
-// trailing limits and sparseProperties members are not modelled yet; the tail
-// pad reserves enough space for the driver to write the full struct. The head
-// field offsets (through pipelineCacheUUID) match the C layout exactly.
-type physicalDeviceProperties struct {
-	apiVersion        uint32
-	driverVersion     uint32
-	vendorID          uint32
-	deviceID          uint32
-	deviceType        uint32
-	deviceName        [256]byte
-	pipelineCacheUUID [16]byte
-	_                 [824]byte // VkPhysicalDeviceLimits + VkPhysicalDeviceSparseProperties
-}
-
 // DeviceInfo is the decoded subset of physical device properties.
 type DeviceInfo struct {
 	Name          string
@@ -178,14 +117,14 @@ type DeviceInfo struct {
 // EnumeratePhysicalDevices returns the physical devices on the instance.
 func (i Instance) EnumeratePhysicalDevices() ([]PhysicalDevice, error) {
 	var count uint32
-	if res := vkEnumeratePhysicalDevices(i, &count, nil); !res.Ok() {
+	if res := Result(vulkan.VkEnumeratePhysicalDevices(vulkan.VkInstance(i), unsafe.Pointer(&count), nil)); !res.Ok() {
 		return nil, res.asError("vkEnumeratePhysicalDevices(count)")
 	}
 	if count == 0 {
 		return nil, nil
 	}
 	devices := make([]PhysicalDevice, count)
-	if res := vkEnumeratePhysicalDevices(i, &count, &devices[0]); !res.Ok() {
+	if res := Result(vulkan.VkEnumeratePhysicalDevices(vulkan.VkInstance(i), unsafe.Pointer(&count), unsafe.Pointer(&devices[0]))); !res.Ok() {
 		return nil, res.asError("vkEnumeratePhysicalDevices(list)")
 	}
 	return devices, nil
@@ -193,14 +132,14 @@ func (i Instance) EnumeratePhysicalDevices() ([]PhysicalDevice, error) {
 
 // Info returns the decoded properties of the physical device.
 func (pd PhysicalDevice) Info() DeviceInfo {
-	var props physicalDeviceProperties
-	vkGetPhysicalDeviceProperties(pd, unsafe.Pointer(&props))
+	var props vulkan.VkPhysicalDeviceProperties
+	vulkan.VkGetPhysicalDeviceProperties(vulkan.VkPhysicalDevice(pd), unsafe.Pointer(&props))
 	return DeviceInfo{
-		Name:          goStr(props.deviceName[:]),
-		Type:          PhysicalDeviceType(props.deviceType),
-		APIVersion:    props.apiVersion,
-		DriverVersion: props.driverVersion,
-		VendorID:      props.vendorID,
-		DeviceID:      props.deviceID,
+		Name:          goStr(props.DeviceName[:]),
+		Type:          PhysicalDeviceType(props.DeviceType),
+		APIVersion:    props.ApiVersion,
+		DriverVersion: props.DriverVersion,
+		VendorID:      props.VendorID,
+		DeviceID:      props.DeviceID,
 	}
 }
