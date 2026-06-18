@@ -17,6 +17,25 @@ func (c CommandBuffer) CopyBuffer(src, dst Buffer, size DeviceSize) {
 	runtime.KeepAlive(&region)
 }
 
+// BlitImage records a single-region vkCmdBlitImage from one mip level of src to
+// one mip level of dst, both color aspect, layer 0. Source/destination extents
+// are the half-open rectangles [0..w, 0..h] at each level; filter is a VkFilter
+// (FilterLinear for mip downsampling). src must be in TRANSFER_SRC_OPTIMAL and
+// dst in TRANSFER_DST_OPTIMAL.
+func (c CommandBuffer) BlitImage(src Image, srcMip uint32, srcW, srcH int32, dst Image, dstMip uint32, dstW, dstH int32, filter uint32) {
+	blit := vulkan.VkImageBlit{
+		SrcSubresource: vulkan.VkImageSubresourceLayers{AspectMask: AspectColor, MipLevel: srcMip, LayerCount: 1},
+		SrcOffsets:     [2]vulkan.VkOffset3D{{X: 0, Y: 0, Z: 0}, {X: srcW, Y: srcH, Z: 1}},
+		DstSubresource: vulkan.VkImageSubresourceLayers{AspectMask: AspectColor, MipLevel: dstMip, LayerCount: 1},
+		DstOffsets:     [2]vulkan.VkOffset3D{{X: 0, Y: 0, Z: 0}, {X: dstW, Y: dstH, Z: 1}},
+	}
+	vulkan.VkCmdBlitImage(vulkan.VkCommandBuffer(c),
+		vulkan.VkImage(src), vulkan.VkImageLayout(LayoutTransferSrcOptimal),
+		vulkan.VkImage(dst), vulkan.VkImageLayout(LayoutTransferDstOptimal),
+		1, unsafe.Pointer(&blit), vulkan.VkFilter(filter))
+	runtime.KeepAlive(&blit)
+}
+
 // CreateCommandPool creates a command pool allowing individual buffer resets.
 func (d Device) CreateCommandPool(family uint32) (CommandPool, error) {
 	ci := vulkan.VkCommandPoolCreateInfo{

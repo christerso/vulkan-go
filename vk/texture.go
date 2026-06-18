@@ -117,6 +117,32 @@ func (c CommandBuffer) ImageBarrier(img Image, oldLayout, newLayout ImageLayout,
 	runtime.KeepAlive(&bar)
 }
 
+// ImageBarrierLevels records a vkCmdPipelineBarrier transitioning a contiguous
+// run of mip levels [baseMip, baseMip+levelCount) of img from oldLayout to
+// newLayout. It is the multi-level form of ImageBarrier, used by the mipmap
+// generation path to flip a single source level or the whole chain at once.
+func (c CommandBuffer) ImageBarrierLevels(img Image, baseMip, levelCount uint32, oldLayout, newLayout ImageLayout, srcStage, dstStage, srcAccess, dstAccess uint32, aspect uint32) {
+	const queueFamilyIgnored uint32 = 0xFFFFFFFF
+	bar := vulkan.VkImageMemoryBarrier{
+		SType:               vulkan.VkStructureType(stImageMemoryBarrier),
+		SrcAccessMask:       srcAccess,
+		DstAccessMask:       dstAccess,
+		OldLayout:           vulkan.VkImageLayout(oldLayout),
+		NewLayout:           vulkan.VkImageLayout(newLayout),
+		SrcQueueFamilyIndex: queueFamilyIgnored,
+		DstQueueFamilyIndex: queueFamilyIgnored,
+		Image:               vulkan.VkImage(img),
+		SubresourceRange: vulkan.VkImageSubresourceRange{
+			AspectMask:   aspect,
+			BaseMipLevel: baseMip,
+			LevelCount:   levelCount,
+			LayerCount:   1,
+		},
+	}
+	vulkan.VkCmdPipelineBarrier(vulkan.VkCommandBuffer(c), srcStage, dstStage, 0, 0, nil, 0, nil, 1, unsafe.Pointer(&bar))
+	runtime.KeepAlive(&bar)
+}
+
 // CopyBufferToImage records a copy of the whole buffer into the image's
 // transfer-dst layout at the given extent (one mip, one layer, color aspect).
 func (c CommandBuffer) CopyBufferToImage(buf Buffer, img Image, width, height uint32) {
@@ -189,6 +215,114 @@ func (d Device) CreateTexture2D(pd PhysicalDevice, q Queue, pool CommandPool, wi
 		return AllocImage{}, 0, err
 	}
 	return img, view, nil
+}
+
+// MipLevels2D returns the number of mip levels in a full chain for a width x
+// height image: floor(log2(max(w,h))) + 1.
+func MipLevels2D(width, height uint32) uint32 {
+	m := width
+	if height > m {
+		m = height
+	}
+	levels := uint32(1)
+	for m > 1 {
+		m >>= 1
+		levels++
+	}
+	return levels
+}
+
+// CreateTexture2DMipmapped creates a device-local, sampled 2D image from RGBA
+// bytes with a full mip chain (floor(log2(max(w,h)))+1 levels), uploads level 0
+// through a staging buffer, then generates the remaining levels on the GPU with
+// vkCmdBlitImage (LINEAR filter). It returns the image (with memory), an image
+// view spanning all mip levels, and the mip count (for sizing a trilinear
+// sampler's maxLod). The whole image ends in SHADER_READ_ONLY_OPTIMAL. rgba must
+// hold width*height*4 bytes (R8G8B8A8_UNORM). This is the mipmapped counterpart
+// of CreateTexture2D, which is left unchanged for single-mip callers.
+func (d Device) CreateTexture2DMipmapped(pd PhysicalDevice, q Queue, pool CommandPool, width, height uint32, rgba []byte) (AllocImage, ImageView, uint32, error) {
+	mipLevels := MipLevels2D(width, height)
+	img, err := d.CreateImage2DMips(pd, FormatR8G8B8A8Unorm, Extent2D{Width: width, Height: height},
+		ImageUsageTransferDst|ImageUsageTransferSrc|ImageUsageSampled, mipLevels)
+	if err != nil {
+		return AllocImage{}, 0, 0, err
+	}
+
+	staging, err := d.CreateBuffer(pd, BufferConfig{
+		Size:       DeviceSize(len(rgba)),
+		Usage:      BufferUsageTransferSrc,
+		Properties: MemoryHostVisible | MemoryHostCoherent,
+		Map:        true,
+	})
+	if err != nil {
+		d.DestroyImage(img)
+		return AllocImage{}, 0, 0, err
+	}
+	defer d.DestroyBuffer(staging)
+	CopyToMapped(staging.Mapped, rgba)
+
+	cmds, err := d.AllocateCommandBuffers(pool, 1)
+	if err != nil {
+		d.DestroyImage(img)
+		return AllocImage{}, 0, 0, err
+	}
+	cmd := cmds[0]
+	if err := cmd.Begin(CommandBufferOneTimeSubmit); err != nil {
+		d.DestroyImage(img)
+		return AllocImage{}, 0, 0, err
+	}
+
+	// Upload level 0: UNDEFINED (all levels) -> TRANSFER_DST, copy, then leave
+	// level 0 ready to act as the blit source for level 1.
+	cmd.ImageBarrierLevels(img.Image, 0, mipLevels, LayoutUndefined, LayoutTransferDstOptimal,
+		StageTopOfPipe, StageTransfer, 0, AccessTransferWrite, AspectColor)
+	cmd.CopyBufferToImage(staging.Buffer, img.Image, width, height)
+
+	// Generate the chain: for each level i, transition i-1 to TRANSFER_SRC and
+	// blit it (LINEAR, halving extents) into i, which is already TRANSFER_DST.
+	srcW, srcH := int32(width), int32(height)
+	for i := uint32(1); i < mipLevels; i++ {
+		cmd.ImageBarrierLevels(img.Image, i-1, 1, LayoutTransferDstOptimal, LayoutTransferSrcOptimal,
+			StageTransfer, StageTransfer, AccessTransferWrite, AccessTransferRead, AspectColor)
+		dstW, dstH := srcW/2, srcH/2
+		if dstW < 1 {
+			dstW = 1
+		}
+		if dstH < 1 {
+			dstH = 1
+		}
+		cmd.BlitImage(img.Image, i-1, srcW, srcH, img.Image, i, dstW, dstH, FilterLinear)
+		srcW, srcH = dstW, dstH
+	}
+
+	// Transition all levels to SHADER_READ_ONLY. Levels [0, mipLevels-1) are in
+	// TRANSFER_SRC after being blitted from; the last level is still TRANSFER_DST.
+	if mipLevels > 1 {
+		cmd.ImageBarrierLevels(img.Image, 0, mipLevels-1, LayoutTransferSrcOptimal, LayoutShaderReadOnlyOptimal,
+			StageTransfer, StageFragmentShader, AccessTransferRead, AccessShaderRead, AspectColor)
+	}
+	cmd.ImageBarrierLevels(img.Image, mipLevels-1, 1, LayoutTransferDstOptimal, LayoutShaderReadOnlyOptimal,
+		StageTransfer, StageFragmentShader, AccessTransferWrite, AccessShaderRead, AspectColor)
+
+	if err := cmd.End(); err != nil {
+		d.DestroyImage(img)
+		return AllocImage{}, 0, 0, err
+	}
+	if err := q.Submit(SubmitConfig{Command: cmd}); err != nil {
+		d.DestroyImage(img)
+		return AllocImage{}, 0, 0, err
+	}
+	if err := q.WaitIdle(); err != nil {
+		d.DestroyImage(img)
+		return AllocImage{}, 0, 0, err
+	}
+
+	view, err := d.CreateImageViewMips(img.Image, FormatR8G8B8A8Unorm, AspectColor, mipLevels)
+	if err != nil {
+		d.DestroyImage(img)
+		return AllocImage{}, 0, 0, err
+	}
+	return img, view, mipLevels, nil
 }
 
 // UpdateImageDescriptor points a combined-image-sampler descriptor at the given

@@ -88,12 +88,14 @@ const (
 	LayoutColorAttachmentOptimal        ImageLayout = 2
 	LayoutDepthStencilAttachmentOptimal ImageLayout = 3
 	LayoutShaderReadOnlyOptimal         ImageLayout = 5
+	LayoutTransferSrcOptimal            ImageLayout = 6
 	LayoutTransferDstOptimal            ImageLayout = 7
 	LayoutPresentSrcKHR                 ImageLayout = 1000001002
 )
 
 // Image usage flag bits (VkImageUsageFlagBits).
 const (
+	ImageUsageTransferSrc            uint32 = 0x00000001
 	ImageUsageTransferDst            uint32 = 0x00000002
 	ImageUsageSampled                uint32 = 0x00000004
 	ImageUsageColorAttachment        uint32 = 0x00000010

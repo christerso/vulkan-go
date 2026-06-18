@@ -145,14 +145,24 @@ type AllocImage struct {
 	Memory DeviceMemory
 }
 
-// CreateImage2D creates a 2D image and binds device-local memory.
+// CreateImage2D creates a single-mip 2D image and binds device-local memory.
 func (d Device) CreateImage2D(pd PhysicalDevice, format Format, extent Extent2D, usage uint32) (AllocImage, error) {
+	return d.CreateImage2DMips(pd, format, extent, usage, 1)
+}
+
+// CreateImage2DMips creates a 2D image with mipLevels mip levels and binds
+// device-local memory. mipLevels must be >= 1; CreateImage2D is the mipLevels==1
+// case.
+func (d Device) CreateImage2DMips(pd PhysicalDevice, format Format, extent Extent2D, usage uint32, mipLevels uint32) (AllocImage, error) {
+	if mipLevels < 1 {
+		mipLevels = 1
+	}
 	ci := vulkan.VkImageCreateInfo{
 		SType:         vulkan.VkStructureType(stImageCreateInfo),
 		ImageType:     vulkan.VkImageType(ImageType2D),
 		Format:        vulkan.VkFormat(format),
 		Extent:        vulkan.VkExtent3D{Width: extent.Width, Height: extent.Height, Depth: 1},
-		MipLevels:     1,
+		MipLevels:     mipLevels,
 		ArrayLayers:   1,
 		Samples:       SampleCount1,
 		Tiling:        vulkan.VkImageTiling(ImageTilingOptimal),
@@ -191,8 +201,18 @@ func (d Device) DestroyImage(a AllocImage) {
 	}
 }
 
-// CreateImageView creates a 2D image view over the given aspect.
+// CreateImageView creates a single-mip 2D image view over the given aspect.
 func (d Device) CreateImageView(img Image, format Format, aspect uint32) (ImageView, error) {
+	return d.CreateImageViewMips(img, format, aspect, 1)
+}
+
+// CreateImageViewMips creates a 2D image view covering levelCount mip levels
+// starting at level 0. A trilinear sampler needs a view over the whole chain, so
+// the mipmapped texture path passes its full mip count here.
+func (d Device) CreateImageViewMips(img Image, format Format, aspect uint32, levelCount uint32) (ImageView, error) {
+	if levelCount < 1 {
+		levelCount = 1
+	}
 	ci := vulkan.VkImageViewCreateInfo{
 		SType:    vulkan.VkStructureType(stImageViewCreateInfo),
 		Image:    vulkan.VkImage(img),
@@ -200,7 +220,7 @@ func (d Device) CreateImageView(img Image, format Format, aspect uint32) (ImageV
 		Format:   vulkan.VkFormat(format),
 		SubresourceRange: vulkan.VkImageSubresourceRange{
 			AspectMask: aspect,
-			LevelCount: 1,
+			LevelCount: levelCount,
 			LayerCount: 1,
 		},
 	}
