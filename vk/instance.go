@@ -26,6 +26,7 @@ func loadInstanceCommands(instance Instance) {
 	bindInstanceProc(&vkGetPhysicalDeviceQueueFamilyProperties, h, "vkGetPhysicalDeviceQueueFamilyProperties")
 	bindInstanceProc(&vkGetDeviceProcAddr, h, "vkGetDeviceProcAddr")
 	loadDeviceLevelInstanceCommands(instance)
+	loadSurfaceInstanceCommands(instance)
 }
 
 // applicationInfo mirrors VkApplicationInfo. Field order and natural alignment

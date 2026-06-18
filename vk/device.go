@@ -30,13 +30,22 @@ var (
 // loadDeviceLevelInstanceCommands binds commands that operate on a physical
 // device but are resolved through the instance.
 func loadDeviceLevelInstanceCommands(instance Instance) {
-	bindInstanceProc(&vkCreateDevice, uintptr(instance), "vkCreateDevice")
+	h := uintptr(instance)
+	bindInstanceProc(&vkCreateDevice, h, "vkCreateDevice")
+	bindInstanceProc(&vkGetPhysicalDeviceMemoryProperties, h, "vkGetPhysicalDeviceMemoryProperties")
 }
 
 func loadDeviceCommands(device Device) {
 	h := uintptr(device)
 	bindDeviceProc(&vkDestroyDevice, h, "vkDestroyDevice")
 	bindDeviceProc(&vkGetDeviceQueue, h, "vkGetDeviceQueue")
+	bindDeviceProc(&vkDeviceWaitIdle, h, "vkDeviceWaitIdle")
+	bindDeviceProc(&vkQueueWaitIdle, h, "vkQueueWaitIdle")
+	loadSwapchainCommands(device)
+	loadMemoryCommands(device)
+	loadPipelineCommands(device)
+	loadCommandCommands(device)
+	loadSyncCommands(device)
 }
 
 // QueueFamilies returns the queue family properties of the physical device.
