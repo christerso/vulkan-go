@@ -221,6 +221,10 @@ type GraphicsPipelineConfig struct {
 	FrontFace    uint32
 	DepthTest    bool
 	DepthWrite   bool
+	// Blend, when true, enables standard alpha blending on the color
+	// attachment (src=SRC_ALPHA, dst=ONE_MINUS_SRC_ALPHA, op=ADD; alpha
+	// src=ONE, dst=ONE_MINUS_SRC_ALPHA). Default false keeps opaque output.
+	Blend bool
 }
 
 // CreateGraphicsPipeline builds a graphics pipeline with dynamic viewport and
@@ -276,6 +280,15 @@ func (d Device) CreateGraphicsPipeline(cfg GraphicsPipelineConfig) (Pipeline, er
 		ds.DepthWriteEnable = 1
 	}
 	cb := vulkan.VkPipelineColorBlendAttachmentState{ColorWriteMask: 0xF}
+	if cfg.Blend {
+		cb.BlendEnable = 1
+		cb.SrcColorBlendFactor = vulkan.VK_BLEND_FACTOR_SRC_ALPHA
+		cb.DstColorBlendFactor = vulkan.VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+		cb.ColorBlendOp = vulkan.VK_BLEND_OP_ADD
+		cb.SrcAlphaBlendFactor = vulkan.VK_BLEND_FACTOR_ONE
+		cb.DstAlphaBlendFactor = vulkan.VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+		cb.AlphaBlendOp = vulkan.VK_BLEND_OP_ADD
+	}
 	cbs := vulkan.VkPipelineColorBlendStateCreateInfo{
 		SType:           vulkan.VkStructureType(stPipelineColorBlendStateCreateInfo),
 		AttachmentCount: 1,
